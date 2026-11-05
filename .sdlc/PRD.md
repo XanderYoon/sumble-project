@@ -1,7 +1,6 @@
 # Advanced queries on Sumble — product requirements
 
-Status: FINAL v2 — approved by the user with "LGTM" after reviewing the revised PRD and architecture.
-The approved v1 is preserved at `.sdlc/revisions/PRD-v1-approved.md`.
+Status: FINAL v2 — approved by the user
 
 ## Problem and goals
 
@@ -16,6 +15,20 @@ Power users compose a JSON expression and receive matching jobs. Evaluators
 extract the submission, run `docker compose up --build`, and execute documented
 curl commands against a local API. The developer can inspect the same local
 PostgreSQL database using DBeaver.
+
+### User story
+
+As a power user exploring job postings, I want to combine organization,
+technology, and job-function criteria with nested AND, OR, and NOT expressions
+so that I can find relevant jobs without writing SQL or manually comparing
+separate result lists.
+
+For example, I want jobs outside Apple that either have the statistician job
+function or use psql. I submit that expression as JSON, receive a page of unique
+matching jobs with available descriptive details, and choose a supported sort
+order and offset to review further results. If the request is invalid or the
+database cannot complete it, I receive a clear error rather than an empty list
+that could be mistaken for no matches.
 
 ## Functional requirements
 
@@ -88,25 +101,31 @@ Proposed endpoint: `POST /jobs/search` with `Content-Type: application/json`.
 The request has a required `query` member containing exactly one expression:
 
 ```json
-{"query":{"and":[{"field":"organization","value":"apple"},{"field":"technology","value":".net"}]}}
+{
+  "query": {
+    "and": [
+      { "field": "organization", "value": "apple" },
+      { "field": "technology", "value": ".net" }
+    ]
+  }
+}
 ```
 
 All controls are optional and may be supplied independently:
 
 ```json
 {
-  "query": {"field": "organization", "value": "apple"},
+  "query": { "field": "organization", "value": "apple" },
   "limit": 10,
   "offset": 0,
-  "sort": {"field": "id", "direction": "asc"},
+  "sort": { "field": "id", "direction": "asc" },
   "timeout_ms": 25000
 }
 ```
 
 If `sort` is omitted, use `id` ascending. If it is present, its omitted `field`
 or `direction` uses the same default; reject unknown members and explicit null.
-Integer controls reject booleans, floats, numeric strings, and null, with HTTP
-422. Unknown sort fields/directions, negative/over-limit offsets, and invalid
+Integer controls reject booleans, floats, numeric strings, and null, with HTTP 422. Unknown sort fields/directions, negative/over-limit offsets, and invalid
 timeout/limit values also return 422 before executing search SQL.
 
 Expression forms:
@@ -132,7 +151,19 @@ timeout returns a documented non-success status, never an empty successful list.
 Required second example:
 
 ```json
-{"query":{"and":[{"not":{"field":"organization","value":"apple"}},{"or":[{"field":"job_function","value":"statistician"},{"field":"technology","value":"psql"}]}]}}
+{
+  "query": {
+    "and": [
+      { "not": { "field": "organization", "value": "apple" } },
+      {
+        "or": [
+          { "field": "job_function", "value": "statistician" },
+          { "field": "technology", "value": "psql" }
+        ]
+      }
+    ]
+  }
+}
 ```
 
 ## Out of scope
@@ -188,9 +219,19 @@ text-order semantics, and bare-array page response were approved with v2.
 
 ## Approval decision
 
-V1 was approved on 2026-11-04 with "LGTM". The user subsequently requested
-pagination, custom sorting, and client-controlled timeouts, and explicitly chose
-offset pagination, the four sort fields, and statement-only timeout semantics.
-Before any implementation, `reopen prd` reset the PRD/downstream approvals.
-The user approved PRD v2 and the revised architecture with "LGTM" after the
-request to approve both documents. Record this confirmation in the control plane.
+The user approved PRD v2 and the revised architecture.
+Subsequent request: the user requested a descriptive user story and inclusion of
+the following items in the PRD review:
+
+- User story: describe the power user's goal, a concrete nested search, paged
+  results, and the distinction between no matches and a failed request.
+- Optional parameters: pagination, custom sorting, and client-controlled timeouts, and explicitly chose
+  offset pagination, the four sort fields, and statement-only timeout semantics.
+- Matching expectations and normalization: clarify whitespace, punctuation,
+  and aliases using concrete examples. Matching remains case-insensitive exact
+  equality: `Apple` does not match `Apple Services`, and `.net` does not match
+  `dotnet`. Nonempty values are not trimmed; whitespace-only values are invalid.
+- Negative-only searches: review NOT-only expressions, unknown names, and
+  missing associations. NOT applies to the set of all jobs, so negating an
+  unknown name can match every job, subject to pagination. A job with no matching
+  association satisfies the negated leaf.
