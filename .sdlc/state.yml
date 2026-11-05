@@ -1,0 +1,13 @@
+version: 1
+phase: planning
+approvals:
+  prd:
+    sha256: 3f32f19925b90ec8042cacaa5654abd12d69071155ef0752eca33c56d1e96fef
+    approved_at: '2026-11-05T00:23:41+00:00'
+  structure:
+    sha256: 2f41e1d4366c6c406d0bf2b85f5de9afe1a5b34fe1a9490d2604c162c9952fbd
+    approved_at: '2026-11-05T00:23:42+00:00'
+  skeleton:
+    sha256: 7a8824556e2f5bba4a88592ef6769982d94ccbdb9babed6644f7184ce798af69
+    approved_at: '2026-11-05T00:40:15+00:00'
+  board: null

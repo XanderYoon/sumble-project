@@ -1,0 +1,649 @@
+version: 1
+files:
+- path: src/sumble_api/__init__.py
+  content: |
+    """Advanced Boolean search for the supplied Sumble dataset."""
+- path: src/sumble_api/query.py
+  content: |
+    """Typed search contracts; runtime validation is implemented in a later ticket."""
+
+    from __future__ import annotations
+
+    from dataclasses import dataclass
+    from typing import Literal
+
+    type FilterField = Literal["technology", "job_function", "organization"]
+    type SortField = Literal["id", "datetime_pulled", "job_title", "organization_name"]
+    type SortDirection = Literal["asc", "desc"]
+
+    DEFAULT_LIMIT = 10
+    MAX_LIMIT = 10
+    MAX_OFFSET = 100_000
+    DEFAULT_TIMEOUT_MS = 25_000
+    MAX_TIMEOUT_MS = 25_000
+    MAX_BODY_BYTES = 16_384
+    MAX_QUERY_NODES = 128
+    MAX_QUERY_DEPTH = 16
+    MAX_VALUE_LENGTH = 256
+
+
+    class QueryValidationError(ValueError):
+        """Signal invalid input with a safe message and validation path."""
+
+
+    @dataclass(frozen=True)
+    class Leaf:
+        """Match a single allowlisted field and literal name."""
+
+        field: FilterField
+        value: str
+
+
+    @dataclass(frozen=True)
+    class Conjunction:
+        """Require every child expression to match a job."""
+
+        children: tuple[Expression, ...]
+
+
+    @dataclass(frozen=True)
+    class Disjunction:
+        """Require at least one child expression to match a job."""
+
+        children: tuple[Expression, ...]
+
+
+    @dataclass(frozen=True)
+    class Negation:
+        """Match jobs absent from the child expression's result set."""
+
+        child: Expression
+
+
+    type Expression = Leaf | Conjunction | Disjunction | Negation
+
+
+    @dataclass(frozen=True)
+    class SearchOptions:
+        """Hold validated paging, ordering, and SQL-timeout options."""
+
+        limit: int = DEFAULT_LIMIT
+        offset: int = 0
+        sort_field: SortField = "id"
+        sort_direction: SortDirection = "asc"
+        timeout_ms: int = DEFAULT_TIMEOUT_MS
+
+
+    @dataclass(frozen=True)
+    class SearchRequest:
+        """Hold a validated Boolean tree and immutable search options."""
+
+        query: Expression
+        options: SearchOptions = SearchOptions()
+
+
+    def parse_query(payload: object) -> SearchRequest:
+        """Validate decoded request data and apply documented control defaults.
+
+        Args:
+            payload: Entire decoded JSON envelope, including optional controls.
+
+        Returns:
+            A bounded expression tree and validated search options.
+
+        Raises:
+            QueryValidationError: A shape, type, name, or resource bound is invalid.
+            NotImplementedError: Validation is not implemented in the skeleton.
+        """
+        raise NotImplementedError("Query validation is scheduled for implementation.")
+- path: src/sumble_api/models.py
+  content: |
+    """Public job and error response shapes."""
+
+    from datetime import datetime
+
+    from pydantic import BaseModel
+
+
+    class Job(BaseModel):
+        """Describe a job with nullable source fields and a required identifier."""
+
+        id: int
+        organization_id: int | None = None
+        organization_name: str | None = None
+        job_title: str | None = None
+        location: str | None = None
+        country_id: int | None = None
+        datetime_pulled: datetime | None = None
+
+
+    class ErrorDetail(BaseModel):
+        """Carry a safe failure description and server-generated correlation ID."""
+
+        code: str
+        message: str
+        request_id: str
+        path: str | None = None
+
+
+    class ErrorResponse(BaseModel):
+        """Wrap one public error without database diagnostics or credentials."""
+
+        error: ErrorDetail
+- path: src/sumble_api/compiler.py
+  content: |
+    """Contract for compiling validated expressions into parameterized SQL sets."""
+
+    from dataclasses import dataclass
+
+    from sumble_api.query import Expression
+
+
+    @dataclass(frozen=True)
+    class CompiledQuery:
+        """Hold a job-ID SQL set and separate ordered parameter values."""
+
+        sql: str
+        parameters: tuple[object, ...]
+
+
+    def compile_query(expression: Expression) -> CompiledQuery:
+        """Compile a validated tree using fixed SQL fragments and bound values.
+
+        Args:
+            expression: Validated bounded Boolean expression.
+
+        Returns:
+            A SQL set of job IDs and parameters, without database execution.
+
+        Raises:
+            NotImplementedError: SQL compilation is not implemented in the skeleton.
+        """
+        raise NotImplementedError("SQL compilation is scheduled for implementation.")
+- path: src/sumble_api/database.py
+  content: |
+    """Database boundary; importing this module never connects to PostgreSQL."""
+
+    from sumble_api.models import Job
+    from sumble_api.query import SearchRequest
+
+
+    class DatabaseUnavailableError(RuntimeError):
+        """Signal a connection or readiness failure without leaking driver details."""
+
+
+    class SearchTimeoutError(TimeoutError):
+        """Signal that PostgreSQL cancelled the search statement on timeout."""
+
+
+    def search_jobs(request: SearchRequest) -> list[Job]:
+        """Execute a read-only search using PG environment configuration.
+
+        Args:
+            request: Validated tree plus paging, sorting, and timeout options.
+
+        Returns:
+            Up to ten unique jobs in the requested order and offset.
+
+        Raises:
+            DatabaseUnavailableError: PostgreSQL cannot be reached.
+            SearchTimeoutError: The bounded statement timeout is exceeded.
+            NotImplementedError: Execution is not implemented in the skeleton.
+        """
+        raise NotImplementedError("Database search is scheduled for implementation.")
+
+
+    def check_database() -> None:
+        """Check connectivity and required schema using a bounded readiness query.
+
+        Raises:
+            DatabaseUnavailableError: The database or required schema is unavailable.
+            NotImplementedError: Readiness is not implemented in the skeleton.
+        """
+        raise NotImplementedError("Database readiness is scheduled for implementation.")
+- path: src/sumble_api/app.py
+  content: |
+    """HTTP application factory; importing this module starts no services."""
+
+    from fastapi import FastAPI
+
+
+    def create_app() -> FastAPI:
+        """Construct search, health, readiness, and documentation routes.
+
+        Returns:
+            An application with bounded admission/body handling and safe error logging.
+
+        Raises:
+            ValueError: Deployment configuration is invalid.
+            NotImplementedError: Routes are not implemented in the skeleton.
+        """
+        raise NotImplementedError("HTTP routes are scheduled for implementation.")
+- path: src/sumble_api/observability.py
+  content: |
+    """Contract for safe structured logs and rotating persistent non-200 history."""
+
+    from pathlib import Path
+
+
+    def configure_logging(log_dir: Path) -> None:
+        """Configure JSON stdout logs and rotating non-200 files.
+
+        Args:
+            log_dir: Persistent directory for errors.jsonl and three rotated backups.
+
+        Returns:
+            None; file-sink failures must fall back to stdout diagnostics.
+
+        Raises:
+            NotImplementedError: Logging is not implemented in the skeleton.
+        """
+        raise NotImplementedError("Safe logging is scheduled for implementation.")
+- path: scripts/package.py
+  content: |
+    """Contract for packaging an explicit submission artifact allowlist."""
+
+    from pathlib import Path
+
+
+    def build_submission(output: Path) -> Path:
+        """Package approved deliverable files without runtime or workflow artifacts.
+
+        Args:
+            output: Destination ZIP path.
+
+        Returns:
+            The completed ZIP path.
+
+        Raises:
+            FileNotFoundError: A required source artifact is missing.
+            OSError: The archive cannot be written.
+            NotImplementedError: Packaging is not implemented in the skeleton.
+        """
+        raise NotImplementedError("Submission packaging is scheduled for implementation.")
+- path: tests/conftest.py
+  content: |
+    """Shared fixtures will isolate HTTP boundaries and PostgreSQL test schemas."""
+- path: tests/test_api.py
+  content: |
+    """HTTP test scaffolding; route acceptance tests arrive with implementation."""
+
+    import importlib
+
+    import psycopg
+
+
+    def test_importing_modules_does_not_connect_to_database(monkeypatch):
+        def unexpected_connection(*args, **kwargs):
+            raise AssertionError("Importing application modules must not open a database.")
+
+        monkeypatch.setattr(psycopg, "connect", unexpected_connection)
+        for name in ("app", "query", "compiler", "database", "models", "observability"):
+            importlib.reload(importlib.import_module(f"sumble_api.{name}"))
+- path: tests/test_query.py
+  content: |
+    """Expression and search-option validation acceptance tests belong here."""
+- path: tests/test_compiler.py
+  content: |
+    """Boolean SQL and bound-parameter acceptance tests belong here."""
+- path: tests/test_database.py
+  content: |
+    """Real PostgreSQL semantics, paging, sort, and timeout tests belong here."""
+- path: tests/test_concurrency.py
+  content: |
+    """Admission, overload, cancellation, and capacity recovery tests belong here."""
+- path: tests/test_observability.py
+  content: |
+    """Safe logging, correlation, rotation, and persistence tests belong here."""
+- path: pyproject.toml
+  content: |
+    [build-system]
+    requires = ["setuptools==80.9.0"]
+    build-backend = "setuptools.build_meta"
+
+    [project]
+    name = "sumble-advanced-queries"
+    version = "0.1.0"
+    description = "Boolean job search API for the supplied Sumble PostgreSQL dataset"
+    requires-python = ">=3.14,<3.15"
+    dependencies = [
+      "fastapi==0.162.0", "uvicorn==0.54.0", "psycopg[binary]==3.3.8",
+      "anyio==4.16.0", "pydantic==2.14.2",
+    ]
+
+    [tool.setuptools.packages.find]
+    where = ["src"]
+
+    [tool.pytest.ini_options]
+    testpaths = ["tests"]
+    pythonpath = ["src"]
+    addopts = "--strict-markers"
+    markers = ["integration: requires an explicitly configured PostgreSQL test database"]
+
+    [tool.ruff]
+    target-version = "py314"
+    line-length = 100
+    src = ["src", "tests", "scripts"]
+    extend-exclude = [".agents", ".sdlc", ".worktrees"]
+
+    [tool.ruff.lint]
+    select = [
+      "E4", "E7", "E9",  # Core pycodestyle errors
+      "F",                # Pyflakes
+      "I",                # Import sorting
+      "B",                # Bugbear correctness
+      "UP",               # Modernize syntax for target Python
+      "C4",               # Comprehension simplifications
+      "SIM",              # Avoid redundant control flow
+      "RUF",              # Ruff-specific mistakes
+      "ANN",              # Annotate public and internal function signatures
+      "D",                # Document public APIs
+    ]
+    ignore = ["D203", "D213", "ANN401"]
+
+    [tool.ruff.lint.pydocstyle]
+    convention = "google"
+
+    [tool.ruff.lint.per-file-ignores]
+    "tests/**/*.py" = ["D", "ANN"]
+
+    [tool.ruff.format]
+    quote-style = "double"
+    indent-style = "space"
+
+    [tool.ty.environment]
+    python-version = "3.14"
+
+    [tool.ty.src]
+    include = ["src", "tests", "scripts"]
+
+    [tool.ty.rules]
+    # Default ty errors still apply. No global suppression/baseline.
+    import-not-found = "error"
+    invalid-assignment = "error"
+    invalid-return-type = "error"
+    unused-ignore-comment = "error"
+- path: requirements.txt
+  content: |
+    # Resolved and installed on CPython 3.14.10, Linux amd64.
+    annotated-doc==0.0.5
+    annotated-types==0.8.0
+    anyio==4.16.0
+    click==8.5.0
+    fastapi==0.162.0
+    h11==0.16.0
+    idna==3.20
+    opentelemetry-api==1.45.2
+    psycopg==3.3.8
+    psycopg-binary==3.3.8
+    pydantic==2.14.2
+    pydantic_core==2.50.2
+    starlette==1.10.0
+    typing-inspection==0.4.5
+    typing_extensions==4.16.0
+    uvicorn==0.54.0
+- path: requirements-dev.txt
+  content: |
+    # Resolved and installed on CPython 3.14.10, Linux amd64.
+    annotated-doc==0.0.5
+    annotated-types==0.8.0
+    anyio==4.16.0
+    certifi==2026.10.23
+    click==8.5.0
+    fastapi==0.162.0
+    h11==0.16.0
+    httpcore==1.0.9
+    httpx==0.28.1
+    idna==3.20
+    iniconfig==2.3.1
+    opentelemetry-api==1.45.2
+    packaging==26.3
+    pluggy==1.7.0
+    psycopg==3.3.8
+    psycopg-binary==3.3.8
+    pydantic==2.14.2
+    pydantic_core==2.50.2
+    Pygments==2.21.0
+    pytest==9.2.0
+    ruff==0.17.3
+    starlette==1.10.0
+    ty==0.0.97
+    typing-inspection==0.4.5
+    typing_extensions==4.16.0
+    uvicorn==0.54.0
+    setuptools==80.9.0
+- path: Dockerfile
+  content: |
+    FROM python:3.14-slim@sha256:930e1abba7c4e8f96ed93e8012c35d174d7732752731bbd5e8e757d7ec6f3966
+    ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PYTHONPATH=/app/src
+    WORKDIR /app
+    COPY requirements.txt .
+    RUN python -m pip install --no-cache-dir -r requirements.txt \
+        && useradd --create-home --uid 10001 app \
+        && mkdir -p /var/log/sumble \
+        && chown app:app /var/log/sumble
+    COPY --chown=app:app src/ ./src/
+    USER app
+    EXPOSE 8000
+    CMD ["uvicorn", "sumble_api.app:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--no-access-log"]
+- path: docker-compose.yml
+  content: |
+    services:
+      db:
+        image: nzsne8pttnh8wrpu/p2ckp9ddret2arc2@sha256:714ff812e4d1ceb832ac41bc1a7d471cd5485fe14cb7a01b705909933a11097d
+        ports:
+          - "127.0.0.1:5432:5432"
+        healthcheck:
+          test: ["CMD-SHELL", "pg_isready -U postgres -d sumble_data"]
+          interval: 1s
+          timeout: 3s
+          retries: 60
+        logging: &rotated_logs
+          driver: json-file
+          options:
+            max-size: "10m"
+            max-file: "3"
+      application:
+        build: .
+        depends_on:
+          db:
+            condition: service_healthy
+        ports:
+          - "127.0.0.1:8000:8000"
+        environment:
+          PGHOST: db
+          PGPORT: "5432"
+          PGUSER: postgres
+          PGPASSWORD: supersecretpassword
+          PGDATABASE: sumble_data
+          MAX_CONCURRENT_SEARCHES: "4"
+          LOG_DIR: /var/log/sumble
+        volumes:
+          - app_logs:/var/log/sumble
+        healthcheck:
+          test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/ready', timeout=6)"]
+          interval: 10s
+          timeout: 7s
+          start_period: 10s
+          retries: 6
+        logging: *rotated_logs
+    volumes:
+      app_logs:
+- path: .dockerignore
+  content: |
+    .git
+    .agents
+    .sdlc
+    .worktrees
+    .venv
+    .env*
+    .pytest_cache
+    .ruff_cache
+    **/__pycache__
+    **/*.pyc
+    **/*.egg-info
+    dist
+    build
+    *.log
+- path: README.md
+  content: "# Sumble advanced queries\n\nStatus: code skeleton for review. Query validation, SQL generation, HTTP\
+    \ routes,\nconcurrency controls, and logging are explicit NotImplementedError stubs.\nThe API is not functional\
+    \ yet; do not use this scaffold as the submission ZIP.\n\nSee the [codebase flow diagram](docs/code-flow.md)\
+    \ for the planned request path\nthrough the modules, including error handling, logging, and resource cleanup.\n\
+    \n## Runtime and planned startup\n\nPython 3.14, FastAPI, Psycopg 3, and the supplied PostgreSQL Docker image.\n\
+    Once implementation is complete, run `docker compose up --build`, then use\nhttp://127.0.0.1:8000/docs. Readiness:\
+    \ `/ready`; liveness: `/health`.\nThe current factory stub deliberately prevents API startup.\n\n## Approved\
+    \ request contract\n\nPOST `/jobs/search` with JSON. Success is a bare array of at most 10 jobs.\nQuery leaves\
+    \ use field/value; operators are and/or arrays and unary not.\nNames match case-insensitive exact equality;\
+    \ absent values satisfy NOT.\n\n```json\n{\n  \"query\": {\"field\": \"organization\", \"value\": \"apple\"\
+    },\n  \"limit\": 10,\n  \"offset\": 0,\n  \"sort\": {\"field\": \"id\", \"direction\": \"asc\"},\n  \"timeout_ms\"\
+    : 25000\n}\n```\n\nAll controls are optional. Limit: 1\u201310; offset: 0\u2013100000; timeout_ms: 1\u201325000\n\
+    for database statement execution only. Sort fields: id, datetime_pulled,\njob_title, organization_name; direction\
+    \ asc/desc; nulls last, ID ascending\nbreaks non-ID ties. Advance offset by limit. Cross-page snapshots are\
+    \ not\nguaranteed if data changes. Defaults are shown above.\n\n## Development checks\n\nWith Python 3.14, install\
+    \ `python -m pip install -r requirements-dev.txt`.\nRun `ruff format --check .`, `ruff check .`, `ty check`,\
+    \ and\n`python -m pytest -q`. Current test coverage is import safety only;\nintegration and acceptance tests\
+    \ arrive with their implementation tickets.\n\n## Required examples (available after implementation)\n\n```bash\n\
+    curl --fail-with-body -sS -X POST http://127.0.0.1:8000/jobs/search \\\n  -H 'Content-Type: application/json'\
+    \ \\\n  -d '{\"query\":{\"and\":[{\"field\":\"organization\",\"value\":\"apple\"},{\"field\":\"technology\"\
+    ,\"value\":\".net\"}]}}'\n\ncurl --fail-with-body -sS -X POST http://127.0.0.1:8000/jobs/search \\\n  -H 'Content-Type:\
+    \ application/json' \\\n  -d '{\"query\":{\"and\":[{\"not\":{\"field\":\"organization\",\"value\":\"apple\"\
+    }},{\"or\":[{\"field\":\"job_function\",\"value\":\"statistician\"},{\"field\":\"technology\",\"value\":\"psql\"\
+    }]}]}}'\n```\n\n## Optional database inspection\n\nDBeaver: PostgreSQL, host 127.0.0.1, port 5432, database\
+    \ sumble_data,\nusername postgres, password supersecretpassword. These are assignment defaults.\nRuntime PG\
+    \ settings are in Compose; readiness handles database availability.\nStop the temporary sumble-schema-inspection\
+    \ container before starting Compose\nif it still owns port 5432. Do not stop unrelated containers.\n\n## Remaining\
+    \ delivery documentation\n\nImplementation tickets will add nested-query, paging/sorting/timeout curl\nexamples,\
+    \ full error/default/limit documentation, safe persistent log access\nand deletion instructions, test-database\
+    \ setup, measured validation results,\nand submission ZIP packaging instructions.\n"
+- path: docs/database.md
+  content: |
+    # Observed database
+
+    Supplied image digest: sha256:714ff812e4d1ceb832ac41bc1a7d471cd5485fe14cb7a01b705909933a11097d.
+    The dataset has 89397 jobs, 405050 technology relationships, 80811 function
+    relationships, 9413 technologies, 170 functions, and five organizations.
+    No indexes or declared constraints were observed.
+
+    job_posts_details.id links to job_posts.id; organization_id links to
+    organizations.id. job_posts_tech uses job_post_id and tech_id;
+    job_posts_job_functions uses job_post_id and job_function_id. Dictionary
+    names live in tech, job_functions, and organizations. Ignore denormalized
+    text association columns. All observed entity IDs are unique bigint values.
+
+    This inspection is evidence for the approved architecture, not a migration.
+    Real SQL acceptance tests and schema documentation will be completed later.
+- path: docs/validation.md
+  content: |
+    # Validation record
+
+    Skeleton checks observed on Linux amd64 using CPython 3.14.10 in Docker:
+
+    - Runtime and development dependency installations succeeded with pinned versions.
+    - `docker compose config --quiet` passed.
+    - `docker build -t sumble-skeleton:review .` passed.
+    - `ruff format .` reported 18 files unchanged; the explicit format check also passed.
+    - `ruff check .` passed.
+    - `ty check` passed.
+    - `python -m pytest -q` passed: one import-safety test, 0.43 seconds.
+
+    Pinned quality tools: Ruff 0.17.3, ty 0.0.97, pytest 9.2.0. Runtime roots:
+    FastAPI 0.162.0, Uvicorn 0.54.0, Psycopg/psycopg-binary 3.3.8,
+    AnyIO 4.16.0, Pydantic 2.14.2. Dependency closures are in requirements files.
+    The smoke test verifies that importing modules does not open a database;
+    it does not exercise search behavior. The app factory and business functions
+    are explicit NotImplementedError stubs, so API startup is not yet expected.
+
+    No HTTP search performance or Boolean correctness is verified at this stage.
+    A prior read-only SQL discovery probe for Apple AND .net returned three rows
+    in 255.470 ms; this is not an API benchmark or evidence for the revised sort
+    and pagination implementation. Final checks must use the supplied image and
+    record environment, HTTP timing, concurrency behavior, and limitations.
+- path: .gitignore
+  content: |
+    # Ignore hidden files and directories by default.
+    .*
+    !.gitignore
+    !.agents/
+    !.agents/skills/
+    !.agents/skills/agentic-sdlc/
+
+    # Python artifacts
+    __pycache__/
+    *.py[cod]
+    .venv/
+    venv/
+    build/
+    dist/
+    *.egg-info/
+
+    # Downloaded package archive (the unpacked skill is canonical)
+    agentic-sdlc.tar.gz
+    .worktrees/
+    .sdlc/handoffs/
+    .sdlc/runs/
+    .sdlc/.lock
+    .pytest_cache/
+    .ruff_cache/
+
+    # Keep workflow documents and container build exclusions in the base checkout.
+    !.sdlc/
+    !.sdlc/**
+    !.dockerignore
+    .sdlc/.lock
+    .sdlc/handoffs/
+    .sdlc/runs/
+    *.log
+- path: docs/code-flow.md
+  content: "# Codebase request flow\n\nThis is the intended flow through the approved architecture. The current\n\
+    application functions are skeleton stubs; these routes and calls are not yet\nimplemented. Solid arrows describe\
+    \ the successful search path; dashed arrows\ndescribe rejection/error paths. Each traversal represents one request,\
+    \ from\ningress to egress and a terminal node; responses do not loop back to the input.\n\n```mermaid\nflowchart\
+    \ TD\n    START([\"Start: one client request\"]) --> INPUT[/\"Ingress / input: POST /jobs/search<br/>JSON query\
+    \ + optional limit, offset, sort, timeout_ms\"/]\n    INPUT --> A[\"app.py: request ID and search admission<br/>Default:\
+    \ 4 concurrent searches\"]\n    A --> B[\"app.py: bounded body read and JSON decoding<br/>16 KiB / 5 seconds\"\
+    ]\n    B --> Q[\"query.py: parse_query(payload)<br/>Validate Boolean tree and controls; apply defaults\"]\n\
+    \    Q --> T[\"app.py: dispatch database work to worker thread\"]\n\n    subgraph W[\"Worker thread: database.py\
+    \ search_jobs(request)\"]\n        T --> K[\"compiler.py: compile_query(expression)<br/>AND: INTERSECT / OR:\
+    \ UNION / NOT: EXCEPT\"]\n        K --> SQL[\"database.py: connect; begin read-only transaction<br/>Apply bounded\
+    \ timeout; execute SQL + bound values\"]\n        SQL --> PG[(\"PostgreSQL: matching job IDs<br/>Join job details\
+    \ and sort fields<br/>ORDER BY, then OFFSET and LIMIT\")]\n        PG --> J[\"models.py: Job objects\"]\n  \
+    \      J --> CLEAN[\"database.py: close transaction and connection\"]\n        SQL -. \"connection failure /\
+    \ timeout\" .-> FAIL[\"database.py: clean up before propagating failure\"]\n    end\n\n    CLEAN --> OK[\"app.py:\
+    \ release search slot; serialize Job list\"]\n    OK --> SUCCESS[\"200: JSON array + request ID header\"]\n\
+    \    SUCCESS --> OUTPUT[/\"Egress / output: HTTP response to client<br/>Status + JSON body + request ID header\"\
+    /]\n\n    A -. \"capacity exhausted: 503\" .-> E[\"app.py + models.py: safe error response<br/>Code, message,\
+    \ request ID; optional validation path\"]\n    B -. \"invalid JSON / body limit / read deadline\" .-> E\n  \
+    \  Q -. \"invalid query or controls: 422\" .-> E\n    FAIL -. \"503 / 504\" .-> E\n    E --> RELEASE[\"app.py:\
+    \ release any held slot<br/>After worker/database cleanup, if work started\"]\n    RELEASE --> LOG[\"observability.py:\
+    \ record non-200 event<br/>JSON stdout + rotating app_logs volume\"]\n    LOG --> ERROR[\"Non-200 JSON response\
+    \ + request ID header\"]\n    ERROR --> OUTPUT\n    OUTPUT --> FINISH([\"End: request complete\"])\n```\n\n\
+    ## How the modules fit together\n\n| File | Responsibility on this path |\n| --- | --- |\n| `src/sumble_api/app.py`\
+    \ | HTTP boundary, admission, body limits, dispatch, status mapping, response handling |\n| `src/sumble_api/query.py`\
+    \ | Validate raw JSON into `SearchRequest(Expression, SearchOptions)` |\n| `src/sumble_api/compiler.py` | Build\
+    \ a SQL set of job IDs and separate parameters from the expression |\n| `src/sumble_api/database.py` | Apply\
+    \ connection/transaction/timeout settings; add allowlisted sort and bound page controls; execute and clean up\
+    \ |\n| `src/sumble_api/models.py` | Define the public `Job`, `ErrorDetail`, and `ErrorResponse` shapes |\n|\
+    \ `src/sumble_api/observability.py` | Configure safe logs and correlate non-200 events with response request\
+    \ IDs |\n\n`compiler.py` does not execute SQL. `database.py` owns the database connection and\nthe full search\
+    \ statement, including joins, sorting, and pagination. Sorting\nmust consider every matching job before offset/limit;\
+    \ selecting ten IDs first\nwould produce incorrect custom-sort pages.\n\nThe HTTP layer remains async; Psycopg\
+    \ work runs in a worker thread. A cancelled\nHTTP task cannot return its search slot while that thread still\
+    \ runs SQL.\nCleanup finishes before capacity is released. Timeout defaults to 25,000 ms for\nthe database statement\
+    \ only, with a client range of 1\u201325,000 ms. It is not an\nend-to-end HTTP deadline. Limit defaults/maxes\
+    \ to 10; offset defaults to zero;\nsorting defaults to ID ascending, with nulls last and ID ascending for non-ID\
+    \ ties.\n\nUnexpected server failures also pass through safe 500 handling and non-200\nlogging; the diagram\
+    \ highlights the common validation/database branches.\nMiddleware also covers non-search errors such as unknown\
+    \ routes and readiness\nfailures. No request bodies, query values, credentials, or raw driver errors go\ninto\
+    \ error logs. Aborted requests are recorded separately if no response is sent.\n\n## Startup, health, and packaging\
+    \ paths\n\n1. `docker-compose.yml` starts the supplied database and waits for its health check.\n2. `Dockerfile`\
+    \ starts Uvicorn, which calls `app.py:create_app()` as a factory.\n3. The factory configures logging and routes;\
+    \ `/health` checks process liveness\n   without consuming a search slot. `/ready` calls `database.py:check_database()`\n\
+    \   with its own bounded readiness capacity and short database timeout.\n4. `scripts/package.py:build_submission(output)`\
+    \ is an offline delivery path,\n   not an HTTP route. It will package source, configuration, tests, and docs\n\
+    \   into a ZIP while excluding workflow/runtime artifacts.\n\nThe stub `create_app()` currently raises `NotImplementedError`;\
+    \ building the\nimage succeeds, but a running API awaits the implementation tickets.\n\n## Verification map\n\
+    \n`tests/test_query.py` covers validation; `test_compiler.py` covers SQL composition\nand value binding; `test_database.py`\
+    \ covers actual SQL semantics, paging, sorting,\nand timeout cleanup; `test_api.py` covers the HTTP contract;\
+    \ `test_concurrency.py`\ncovers admission/cancellation; `test_observability.py` covers safe persisted logs.\n\
+    Only the import-safety smoke test exists at the skeleton stage.\n"

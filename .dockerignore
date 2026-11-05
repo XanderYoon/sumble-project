@@ -1,0 +1,14 @@
+.git
+.agents
+.sdlc
+.worktrees
+.venv
+.env*
+.pytest_cache
+.ruff_cache
+**/__pycache__
+**/*.pyc
+**/*.egg-info
+dist
+build
+*.log

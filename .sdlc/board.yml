@@ -1,0 +1,5 @@
+version: 1
+project: "REPLACE_WITH_PROJECT_NAME"
+# Add epics ONLY after the approved PRD, architecture, and skeleton exist.
+# Full working example: assets/board.example.yml
+epics: []
