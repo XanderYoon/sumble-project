@@ -1,4 +1,11 @@
-"""Shared fixtures isolate PostgreSQL tests in disposable schemas."""
+"""Shared fixtures isolate PostgreSQL tests in disposable schemas.
+
+Coverage gaps:
+- No live Compose-image fixture; isolated schemas seed a tiny synthetic dataset
+- No concurrent multi-schema or leftover-connection leak checks
+- Seed still includes unused rows (pythonista, %, a_b, injection name, nulls) for
+  the remaining Boolean and timeout tests
+"""
 
 import os
 from uuid import uuid4
