@@ -33,7 +33,7 @@ curl --fail-with-body http://127.0.0.1:8000/ready
 | --- | --- |
 | API | http://127.0.0.1:8000 |
 | Search | `POST /jobs/search` |
-| Docs | http://127.0.0.1:8000/docs |
+| Docs | http://127.0.0.1:8000/docs (generated route list; this README is the contract) |
 | Ready | `GET /ready` (database + schema) |
 | Live | `GET /health` |
 
@@ -116,9 +116,10 @@ changes between pages can skip or repeat jobs.
 
 Inputs must be UTF-8 `application/json`: 16384 actual body bytes, five seconds
 to read the body, 128 expression nodes, 16 expression levels (root is 1), 256
-characters per nonblank leaf. Raw JSON nesting beyond 64 containers is 400.
-Ordinary depth/node violations are 422. Unknown keys, ambiguous nodes, null
-controls, and non-integer controls are rejected. Values are not trimmed.
+characters per nonblank leaf. Expression depth and node violations are 422.
+JSON that cannot be decoded, including input that overflows the JSON parser,
+is 400. Unknown keys, ambiguous nodes, null controls, and non-integer controls
+are rejected. Values are not trimmed.
 
 ## Errors and bounded work
 
@@ -128,7 +129,7 @@ driver text, credentials, bodies, and leaf values.
 
 | HTTP | Meaning |
 | --- | --- |
-| 400 | malformed/non-UTF-8 JSON or raw JSON nesting beyond 64 |
+| 400 | malformed, non-UTF-8, or otherwise undecodable JSON |
 | 408 | body-read deadline exceeded |
 | 413 | body larger than 16384 bytes |
 | 415 | content type is not application/json |
@@ -175,9 +176,11 @@ docker compose start application
 docker compose down
 ```
 
-Non-200 and aborted requests write safe JSON events (request ID, route, status,
-code, duration). File rotation is 5 MiB plus three backups. App logs persist
-through recreation. `docker compose down --volumes` deletes the log volume.
+Every request writes one JSON line to stdout (request ID, route, status, code,
+duration). Non-200 and aborted requests are also appended to `errors.jsonl`.
+An unexpected exception is recorded by class name only. File rotation is 5 MiB
+plus three backups. App logs persist through recreation. `docker compose down --volumes`
+deletes the log volume.
 
 ## Delivery status
 
