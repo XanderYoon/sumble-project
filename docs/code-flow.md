@@ -1,8 +1,6 @@
 # Codebase request flow
 
-This is the intended flow through the approved architecture. The current
-application functions are skeleton stubs; these routes and calls are not yet
-implemented. Solid arrows describe the successful search path; dashed arrows
+This is the implemented flow through the application. Solid arrows describe the successful search path; dashed arrows
 describe rejection/error paths. Each traversal represents one request, from
 ingress to egress and a terminal node; responses do not loop back to the input.
 
@@ -10,7 +8,7 @@ ingress to egress and a terminal node; responses do not loop back to the input.
 flowchart TD
     START(["Start: one client request"]) --> INPUT[/"Ingress / input: POST /jobs/search<br/>JSON query + optional limit, offset, sort, timeout_ms"/]
     INPUT --> A["app.py: request ID and search admission<br/>Default: 4 concurrent searches"]
-    A --> B["app.py: bounded body read and JSON decoding<br/>16 KiB / 5 seconds"]
+    A --> B["app.py: bounded body read and JSON decoding<br/>UTF-8; 16 KiB / 5 seconds<br/>Raw JSON containers at most 64"]
     B --> Q["query.py: parse_query(payload)<br/>Validate Boolean tree and controls; apply defaults"]
     Q --> T["app.py: dispatch database work to worker thread"]
 
@@ -75,11 +73,12 @@ into error logs. Aborted requests are recorded separately if no response is sent
    without consuming a search slot. `/ready` calls `database.py:check_database()`
    with its own bounded readiness capacity and short database timeout.
 4. `scripts/package.py:build_submission(output)` is an offline delivery path,
-   not an HTTP route. It will package source, configuration, tests, and docs
-   into a ZIP while excluding workflow/runtime artifacts.
+   not an HTTP route. It uses an explicit source/configuration/tests/docs allowlist, rejects missing
+   or symlinked inputs, and excludes workflow/runtime artifacts. Execution and
+   archive validation are deferred until user approval of the entire codebase.
 
-The stub `create_app()` currently raises `NotImplementedError`; building the
-image succeeds, but a running API awaits the implementation tickets.
+The running factory creates routes and logging without opening a database
+connection. Compose health checks then verify database-backed readiness.
 
 ## Verification map
 
@@ -87,4 +86,6 @@ image succeeds, but a running API awaits the implementation tickets.
 and value binding; `test_database.py` covers actual SQL semantics, paging, sorting,
 and timeout cleanup; `test_api.py` covers the HTTP contract; `test_concurrency.py`
 covers admission/cancellation; `test_observability.py` covers safe persisted logs.
-Only the import-safety smoke test exists at the skeleton stage.
+The implemented tests exercise these paths; opt-in integration tests use
+isolated PostgreSQL schemas and verify real cancellation and connection cleanup.
+See [validation evidence](validation.md) for measured delivery checks.
