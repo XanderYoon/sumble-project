@@ -265,3 +265,19 @@ User replied "LGTM" to the explicit request to approve the board, routing, and
 quality settings. Record board approval and begin sequential isolated ticket
 execution with fresh native agents and independently rerun quality checks.
 
+
+## 2026-11-05T00:52:31+00:00 [T001]
+- Decision: Validate and build expressions iteratively, counting children before scheduling; expose only fixed diagnostics and known schema paths.
+- Rationale: Bounds parser work independently of Python recursion and prevents literals or unknown keys leaking into errors; approved matching semantics and option defaults remain unchanged.
+
+## 2026-11-05T00:54:15+00:00 [T002]
+- Decision: Compile grouped SQL sets with fixed normalized join templates, unchanged bound values, and DISTINCT standalone leaves.
+- Rationale: Preserves Boolean precedence, multi-value and NOT semantics, literal safety, and unique job IDs before hydration.
+
+## 2026-11-05T00:59:53+00:00 [T003]
+- Decision: Execute compiled ID sets through actual jobs, LEFT JOIN source details, sort all matches before bound pagination, and use context-managed read-only connections.
+- Rationale: Maintains correct custom-sort pages and nullable metadata while ensuring rollback/closure after timeout or hydration failure; isolated schema integration verified semantics without public writes.
+
+## 2026-11-05T01:05:45+00:00 [T004]
+- Decision: Use generated request contexts, fixed method/route/error-code allowlists, safe bounded exception metadata, and resilient stdout/rotating-file handlers.
+- Rationale: Avoids logging arbitrary client data or raw exception diagnostics, isolates correlation across async requests, and preserves application outcomes when file logging fails.

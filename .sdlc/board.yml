@@ -1,146 +1,455 @@
 version: 1
 project: Sumble advanced queries
 epics:
-  - id: E001
-    title: Advanced Boolean job search API
-    goal: Deliver a safe, bounded, Docker-runnable search API and verified submission ZIP against the supplied dataset.
+- id: E001
+  title: Advanced Boolean job search API
+  goal: Deliver a safe, bounded, Docker-runnable search API and verified submission ZIP against the supplied
+    dataset.
+  depends_on: []
+  status: in_progress
+  acceptance:
+  - Nested AND/OR/NOT matches confirmed exact-name and missing-association semantics across all three
+    fields.
+  - Limit, offset, four-field sorting, and statement timeout honor approved defaults, bounds, and errors.
+  - Four-search admission, bounded inputs, cleanup, safe non-200 logging, and persistent rotation are
+    verified.
+  - Both real-image curl examples work; default Apple AND .net completes in under 30 seconds after readiness.
+  - A clean extracted submission ZIP starts with docker compose up --build and contains source, tests,
+    packaging, and documentation.
+  - All configured checks and an independent review of the exact final commit pass before a merge request.
+  tickets:
+  - id: T001
+    title: Validate Boolean expressions and search controls
+    description: Implement pure parse_query and safe validation errors for the complete raw envelope,
+      using approved typed nodes/options and bounded tree traversal.
+    difficulty: medium
     depends_on: []
-    status: todo
+    files:
+    - src/sumble_api/query.py
+    - src/sumble_api/models.py
+    - tests/test_query.py
+    prd_sections:
+    - Functional requirements
+    - Interfaces, inputs, outputs, and error behavior
+    - Acceptance scenarios and edge cases
+    architecture_sections:
+    - Public interfaces and contracts
+    - Component responsibilities
     acceptance:
-      - Nested AND/OR/NOT matches confirmed exact-name and missing-association semantics across all three fields.
-      - Limit, offset, four-field sorting, and statement timeout honor approved defaults, bounds, and errors.
-      - Four-search admission, bounded inputs, cleanup, safe non-200 logging, and persistent rotation are verified.
-      - Both real-image curl examples work; default Apple AND .net completes in under 30 seconds after readiness.
-      - A clean extracted submission ZIP starts with docker compose up --build and contains source, tests, packaging, and documentation.
-      - All configured checks and an independent review of the exact final commit pass before a merge request.
-    tickets:
-      - id: T001
-        title: Validate Boolean expressions and search controls
-        description: Implement pure parse_query and safe validation errors for the complete raw envelope, using approved typed nodes/options and bounded tree traversal.
-        difficulty: medium
-        depends_on: []
-        files: [src/sumble_api/query.py, src/sumble_api/models.py, tests/test_query.py]
-        prd_sections: [Functional requirements, "Interfaces, inputs, outputs, and error behavior", Acceptance scenarios and edge cases]
-        architecture_sections: [Public interfaces and contracts, Component responsibilities]
-        acceptance:
-          - Accept exactly leaves, nonempty AND/OR arrays, and unary NOT on all three allowed fields; reject ambiguous/extra keys and invalid shapes/types.
-          - Enforce 16 levels, 128 nodes, and 256 characters per non-whitespace-only name, without unbounded validation recursion; do not trim valid literals.
-          - Default controls to limit 10, offset 0, id ascending, timeout_ms 25000; independently default missing members of a present sort object.
-          - Enforce limit 1–10, offset 0–100000, timeout_ms 1–25000 and four sort fields/asc-desc; reject bool/float/string/null integers and explicit null sort.
-          - Test exact boundaries and over-limit input, punctuation/case preservation, and safe diagnostics that do not echo leaf values; parsing performs no database work.
-        tests: [.venv/bin/python -m pytest -q tests/test_query.py]
-        status: todo
-      - id: T002
-        title: Compile Boolean trees into parameterized SQL sets
-        description: Implement pure compilation into grouped SQL sets of job IDs using fixed normalized relationship templates and separately bound values.
-        difficulty: medium
-        depends_on: [T001]
-        files: [src/sumble_api/compiler.py, tests/test_compiler.py, src/sumble_api/query.py]
-        prd_sections: [Functional requirements, Nonfunctional requirements, Acceptance scenarios and edge cases]
-        architecture_sections: [Data flow and key constraints, Injection protections, Observed database schema]
-        acceptance:
-          - Compile leaves using normalized organization/technology/function joins and lower(name) equality on bound literal values.
-          - Parenthesized INTERSECT implements AND, UNION implements OR, and EXCEPT from all actual job IDs implements NOT of the entire child.
-          - Distinct associations can satisfy separate technology leaves; set operations deduplicate IDs and retain missing associations under NOT.
-          - Parameter order is deterministic; apostrophes, percent signs, and injection-like strings never become SQL syntax or identifiers.
-          - Compilation opens no connection and uses no request-controlled SQL fragments or manual escaping.
-        tests: [.venv/bin/python -m pytest -q tests/test_query.py tests/test_compiler.py]
-        status: todo
-      - id: T003
-        title: Execute sorted paginated searches with bounded SQL timeouts
-        description: Implement read-only execution, row hydration, cleanup, and schema readiness; verify semantics and controls in isolated real-Postgres fixtures.
-        difficulty: medium
-        depends_on: [T002]
-        files: [src/sumble_api/database.py, src/sumble_api/models.py, tests/conftest.py, tests/test_database.py, docs/database.md]
-        prd_sections: [Functional requirements, Nonfunctional requirements, "Interfaces, inputs, outputs, and error behavior", Acceptance scenarios and edge cases]
-        architecture_sections: [Observed database schema, Public interfaces and contracts, Data flow and key constraints, "Packaging, local execution, and verification"]
-        acceptance:
-          - Use standard PG variables, per-request connections, 3-second connection timeout, read-only transactions, and the validated transaction-local statement timeout.
-          - Filter actual jobs, LEFT JOIN descriptive/sort fields, order all matches, then apply bound offset/limit; return unique nullable-source Job objects.
-          - Map only four sort keys and asc/desc to fixed SQL with nulls last and ID ascending for non-ID ties; text uses source values/database collation.
-          - Readiness checks connectivity and all required schema under a 2-second statement timeout without modifying assignment data.
-          - Typed unavailable/timeout errors expose no driver messages; close/rollback connections on success, SQL failure, conversion failure, and timeout.
-          - Integration tests opt in with SUMBLE_RUN_INTEGRATION=1 and PG settings; create/drop only a dedicated temporary schema, never public assignment rows.
-          - Verify nesting, multi-value AND, duplicates, absent/null values, case/punctuation, injection literals, page continuity, all tied/null sorts, and beyond-end offsets against independent expected IDs.
-          - Exercise true Postgres cancellation with a controlled slow fixture, not timing luck; verify cleanup and a subsequent successful search.
-        tests:
-          - .venv/bin/python -m pytest -q tests/test_database.py
-          - env SUMBLE_RUN_INTEGRATION=1 .venv/bin/python -m pytest -q -m integration tests/test_database.py
-        status: todo
-      - id: T004
-        title: Implement safe structured error logging and rotation
-        description: Implement logging setup and reusable safe event/correlation helpers, independent of Postgres, for the later HTTP boundary.
-        difficulty: medium
-        depends_on: [T003]
-        files: [src/sumble_api/observability.py, src/sumble_api/models.py, tests/test_observability.py]
-        prd_sections: [Nonfunctional requirements, "Interfaces, inputs, outputs, and error behavior"]
-        architecture_sections: [Component responsibilities, Public interfaces and contracts, "Packaging, local execution, and verification"]
-        acceptance:
-          - JSON stdout and non-200 errors.jsonl events rotate at 5 MiB with three backups, without the query database.
-          - Events contain UTC time, generated request ID, method, bounded normalized route, status, safe code, and duration; 4xx are warning and 5xx error.
-          - Exclude bodies, query values, credentials, authorization headers, SQL values, raw driver/exception text, and locals; unexpected errors retain only safe class/frame information.
-          - File failures produce safe stdout diagnostics without failing successful searches; repeated setup avoids duplicate handlers.
-          - Test encoding/log forgery, bounds, secret-like input redaction, real rotation, file fallback, and request isolation.
-        tests: [.venv/bin/python -m pytest -q tests/test_observability.py]
-        status: todo
-      - id: T005
-        title: Wire search, health, readiness, and HTTP error contracts
-        description: Implement the app factory, bounded body decoding, threaded database dispatch, typed output/docs, safe status mapping, and correlated non-200 logging.
-        difficulty: medium
-        depends_on: [T003, T004]
-        files: [src/sumble_api/app.py, src/sumble_api/observability.py, src/sumble_api/models.py, tests/test_api.py, tests/test_observability.py, tests/conftest.py]
-        prd_sections: [Users and key workflows, "Interfaces, inputs, outputs, and error behavior", Acceptance scenarios and edge cases]
-        architecture_sections: [Public interfaces and contracts, Component responsibilities, "Packaging, local execution, and verification"]
-        acceptance:
-          - POST /jobs/search accepts query-only/controlled requests, runs blocking DB calls off the event loop, and returns a bare Job array with generated request-ID header.
-          - Bound actual streamed bytes to 16384 despite absent/false Content-Length and body reading to 5 seconds; reject unsupported type and malformed/overdeep JSON.
-          - Map malformed JSON 400, slow body 408, oversized body 413, media type 415, validation 422, unavailable DB 503, timeout 504, and unexpected errors 500 to safe documented envelopes.
-          - GET /health needs no DB; /ready checks schema and returns 200/503; /docs describes grammar, controls/defaults/bounds, responses, and examples.
-          - Completed non-200 events include unknown routes, method errors, readiness failures, and exceptions; aborted requests are recorded separately.
-          - No framework traceback, validation input echo, raw SQL/driver error, or credential leaks through responses/logs; imports remain connection-free.
-        tests: [.venv/bin/python -m pytest -q tests/test_api.py tests/test_observability.py]
-        status: todo
-      - id: T006
-        title: Bound concurrency and preserve cleanup on cancellation
-        description: Add nonwaiting admission before body reading, independent readiness capacity, and cancellation-safe worker lifetime accounting under errors, overload, and disconnects.
-        difficulty: high
-        depends_on: [T005]
-        files: [src/sumble_api/app.py, src/sumble_api/database.py, tests/test_concurrency.py, tests/test_api.py, tests/test_database.py, tests/conftest.py]
-        prd_sections: [Nonfunctional requirements, Functional requirements, Acceptance scenarios and edge cases]
-        architecture_sections: ["Packaging, local execution, and verification", Data flow and key constraints]
-        acceptance:
-          - Default four admitted searches; allow MAX_CONCURRENT_SEARCHES integers 1–16 and fail startup on invalid deployment config.
-          - Acquire capacity before body allocation with no waiting queue; excess searches get 503/server_busy, Retry-After 1, request IDs, and normal safe logging.
-          - Readiness has one separately bounded DB operation, with no probe queue; /health stays independent and responsive under saturation.
-          - Retain the search slot until worker/SQL and cleanup finish after cancellation/disconnect; disable worker-result abandonment and do not block the event loop.
-          - Deterministic synchronization proves no more than the configured searches plus one readiness operation; do not rely on timing-only assertions.
-          - Verify capacity/connection recovery after validation failure, slow upload, execution error, real SQL timeout, and cancellation, followed by success.
-        tests:
-          - .venv/bin/python -m pytest -q tests/test_concurrency.py tests/test_api.py
-          - env SUMBLE_RUN_INTEGRATION=1 .venv/bin/python -m pytest -q -m integration tests/test_database.py tests/test_concurrency.py
-        status: todo
-      - id: T007
-        title: Verify real-image delivery and build the submission ZIP
-        description: Finalize Docker delivery/docs, run real-dataset acceptance and benchmarks, and implement allowlisted ZIP packaging with clean-extraction startup verification. Report core regressions for scoped corrective work rather than unrelated edits.
-        difficulty: medium
-        depends_on: [T006]
-        files: [Dockerfile, docker-compose.yml, .dockerignore, .gitignore, README.md, docs/database.md, docs/validation.md, docs/code-flow.md, scripts/package.py, tests/test_database.py, tests/test_concurrency.py]
-        prd_sections: [Problem and goals, Users and key workflows, Nonfunctional requirements, Acceptance scenarios and edge cases]
-        architecture_sections: ["Packaging, local execution, and verification", Tradeoffs and alternatives]
-        acceptance:
-          - Stop only sumble-schema-inspection before Compose claims port 5432; preserve unrelated containers and public dataset rows.
-          - Compose starts ready non-root API/database without undocumented setup, with pinned images, local bindings, health checks, persistent app_logs, and bounded Docker logs.
-          - Run both required real-image HTTP examples and independently verify IDs with straightforward SQL; default Apple AND .net is under 30 seconds after readiness.
-          - Record environment/image versions, timing distributions/throughput at concurrency 1 and 4, overload/errors, every sort key/direction, and a deep offset; label SQL probes separately.
-          - Verify error-file persistence across container recreation; document safe log inspection/deletion and bounded retention.
-          - README covers required/nested curl examples, paging/sorting/timeouts/defaults, errors, integration test setup, DBeaver, cleanup, and cross-page consistency limits.
-          - build_submission uses an explicit source/tests/docs/config/lock allowlist, fails on missing inputs, and excludes external symlinks, secrets, Git/workflow/worktrees, caches/logs, and DB files.
-          - Inspect the actual ZIP and verify clean extraction starts via the required Compose command; preserve evidence and state any external limitations.
-          - Deliver a local reviewable ZIP; form upload/identity details remain a separate final delivery step after the artifact exists.
-        tests:
-          - .venv/bin/python -m pytest -q
-          - docker compose config --quiet
-          - docker compose up --build --wait --wait-timeout 180
-          - env SUMBLE_RUN_INTEGRATION=1 .venv/bin/python -m pytest -q -m integration
-          - .venv/bin/python -c 'from pathlib import Path; from scripts.package import build_submission; print(build_submission(Path("dist/sumble-advanced-queries.zip")))'
-        status: todo
+    - Accept exactly leaves, nonempty AND/OR arrays, and unary NOT on all three allowed fields; reject
+      ambiguous/extra keys and invalid shapes/types.
+    - Enforce 16 levels, 128 nodes, and 256 characters per non-whitespace-only name, without unbounded
+      validation recursion; do not trim valid literals.
+    - Default controls to limit 10, offset 0, id ascending, timeout_ms 25000; independently default missing
+      members of a present sort object.
+    - Enforce limit 1–10, offset 0–100000, timeout_ms 1–25000 and four sort fields/asc-desc; reject bool/float/string/null
+      integers and explicit null sort.
+    - Test exact boundaries and over-limit input, punctuation/case preservation, and safe diagnostics
+      that do not echo leaf values; parsing performs no database work.
+    tests:
+    - .venv/bin/python -m pytest -q tests/test_query.py
+    status: done
+    assigned_provider: openai
+    assigned_model: gpt-6.1-sol
+    start_head: 50cf8b6b38d001d5b952cf427e7057a8eb1e7ed3
+    started_at: '2026-11-05T00:47:01+00:00'
+    commit: bbce8d2a436bac1004181a9c3e142202811dfaef
+    completed_at: '2026-11-05T00:51:49+00:00'
+    check_evidence: Orchestrator inspected clean worktree and scoped commit bbce8d2; independent configured
+      Ruff format/lint and ty passed; full pytest 123 passed in 0.54s.
+    quality_evidence:
+    - command:
+      - .venv/bin/ruff
+      - format
+      - --check
+      - .
+      exit_code: 0
+      output_tail: 19 files already formatted
+    - command:
+      - .venv/bin/ruff
+      - check
+      - .
+      exit_code: 0
+      output_tail: All checks passed!
+    - command:
+      - .venv/bin/ty
+      - check
+      exit_code: 0
+      output_tail: All checks passed!
+    - command:
+      - .venv/bin/python
+      - -m
+      - pytest
+      - -q
+      exit_code: 0
+      output_tail: '........................................................................ [ 58%]
+
+        ...................................................                      [100%]
+
+        123 passed in 0.48s'
+  - id: T002
+    title: Compile Boolean trees into parameterized SQL sets
+    description: Implement pure compilation into grouped SQL sets of job IDs using fixed normalized relationship
+      templates and separately bound values.
+    difficulty: medium
+    depends_on:
+    - T001
+    files:
+    - src/sumble_api/compiler.py
+    - tests/test_compiler.py
+    - src/sumble_api/query.py
+    prd_sections:
+    - Functional requirements
+    - Nonfunctional requirements
+    - Acceptance scenarios and edge cases
+    architecture_sections:
+    - Data flow and key constraints
+    - Injection protections
+    - Observed database schema
+    acceptance:
+    - Compile leaves using normalized organization/technology/function joins and lower(name) equality
+      on bound literal values.
+    - Parenthesized INTERSECT implements AND, UNION implements OR, and EXCEPT from all actual job IDs
+      implements NOT of the entire child.
+    - Distinct associations can satisfy separate technology leaves; set operations deduplicate IDs and
+      retain missing associations under NOT.
+    - Parameter order is deterministic; apostrophes, percent signs, and injection-like strings never become
+      SQL syntax or identifiers.
+    - Compilation opens no connection and uses no request-controlled SQL fragments or manual escaping.
+    tests:
+    - .venv/bin/python -m pytest -q tests/test_query.py tests/test_compiler.py
+    status: done
+    assigned_provider: openai
+    assigned_model: gpt-6.1-sol
+    start_head: bbce8d2a436bac1004181a9c3e142202811dfaef
+    started_at: '2026-11-05T00:51:50+00:00'
+    commit: e405c9d4ef748701b9053541c25e47096fad045e
+    completed_at: '2026-11-05T00:54:15+00:00'
+    check_evidence: 'Orchestrator inspected clean scoped commit e405c9d; independently reran configured
+      Ruff format/lint, ty, and full pytest: 140 passed.'
+    quality_evidence:
+    - command:
+      - .venv/bin/ruff
+      - format
+      - --check
+      - .
+      exit_code: 0
+      output_tail: 19 files already formatted
+    - command:
+      - .venv/bin/ruff
+      - check
+      - .
+      exit_code: 0
+      output_tail: All checks passed!
+    - command:
+      - .venv/bin/ty
+      - check
+      exit_code: 0
+      output_tail: All checks passed!
+    - command:
+      - .venv/bin/python
+      - -m
+      - pytest
+      - -q
+      exit_code: 0
+      output_tail: '........................................................................ [ 51%]
+
+        ....................................................................     [100%]
+
+        140 passed in 0.47s'
+  - id: T003
+    title: Execute sorted paginated searches with bounded SQL timeouts
+    description: Implement read-only execution, row hydration, cleanup, and schema readiness; verify semantics
+      and controls in isolated real-Postgres fixtures.
+    difficulty: medium
+    depends_on:
+    - T002
+    files:
+    - src/sumble_api/database.py
+    - src/sumble_api/models.py
+    - tests/conftest.py
+    - tests/test_database.py
+    - docs/database.md
+    prd_sections:
+    - Functional requirements
+    - Nonfunctional requirements
+    - Interfaces, inputs, outputs, and error behavior
+    - Acceptance scenarios and edge cases
+    architecture_sections:
+    - Observed database schema
+    - Public interfaces and contracts
+    - Data flow and key constraints
+    - Packaging, local execution, and verification
+    acceptance:
+    - Use standard PG variables, per-request connections, 3-second connection timeout, read-only transactions,
+      and the validated transaction-local statement timeout.
+    - Filter actual jobs, LEFT JOIN descriptive/sort fields, order all matches, then apply bound offset/limit;
+      return unique nullable-source Job objects.
+    - Map only four sort keys and asc/desc to fixed SQL with nulls last and ID ascending for non-ID ties;
+      text uses source values/database collation.
+    - Readiness checks connectivity and all required schema under a 2-second statement timeout without
+      modifying assignment data.
+    - Typed unavailable/timeout errors expose no driver messages; close/rollback connections on success,
+      SQL failure, conversion failure, and timeout.
+    - Integration tests opt in with SUMBLE_RUN_INTEGRATION=1 and PG settings; create/drop only a dedicated
+      temporary schema, never public assignment rows.
+    - Verify nesting, multi-value AND, duplicates, absent/null values, case/punctuation, injection literals,
+      page continuity, all tied/null sorts, and beyond-end offsets against independent expected IDs.
+    - Exercise true Postgres cancellation with a controlled slow fixture, not timing luck; verify cleanup
+      and a subsequent successful search.
+    tests:
+    - .venv/bin/python -m pytest -q tests/test_database.py
+    - env SUMBLE_RUN_INTEGRATION=1 .venv/bin/python -m pytest -q -m integration tests/test_database.py
+    status: done
+    assigned_provider: openai
+    assigned_model: gpt-6.1-sol
+    start_head: e405c9d4ef748701b9053541c25e47096fad045e
+    started_at: '2026-11-05T00:54:16+00:00'
+    commit: ad1d4a9259c42fed11182eb7a14e5c0877f45e35
+    completed_at: '2026-11-05T00:59:53+00:00'
+    check_evidence: 'Independent orchestrator rerun: clean scoped ad1d4a9; Ruff format/lint and ty passed;
+      pytest 146 passed/30 skipped; PG14.11 integration 30 passed/6 deselected in 2.51s, including real
+      timeout cleanup.'
+    quality_evidence:
+    - command:
+      - .venv/bin/ruff
+      - format
+      - --check
+      - .
+      exit_code: 0
+      output_tail: 19 files already formatted
+    - command:
+      - .venv/bin/ruff
+      - check
+      - .
+      exit_code: 0
+      output_tail: All checks passed!
+    - command:
+      - .venv/bin/ty
+      - check
+      exit_code: 0
+      output_tail: All checks passed!
+    - command:
+      - .venv/bin/python
+      - -m
+      - pytest
+      - -q
+      exit_code: 0
+      output_tail: '........................ssssssssssssssssssssssssssssss.................. [ 40%]
+
+        ........................................................................ [ 81%]
+
+        ................................                                         [100%]
+
+        146 passed, 30 skipped in 0.54s'
+  - id: T004
+    title: Implement safe structured error logging and rotation
+    description: Implement logging setup and reusable safe event/correlation helpers, independent of Postgres,
+      for the later HTTP boundary.
+    difficulty: medium
+    depends_on:
+    - T003
+    files:
+    - src/sumble_api/observability.py
+    - src/sumble_api/models.py
+    - tests/test_observability.py
+    prd_sections:
+    - Nonfunctional requirements
+    - Interfaces, inputs, outputs, and error behavior
+    architecture_sections:
+    - Component responsibilities
+    - Public interfaces and contracts
+    - Packaging, local execution, and verification
+    acceptance:
+    - JSON stdout and non-200 errors.jsonl events rotate at 5 MiB with three backups, without the query
+      database.
+    - Events contain UTC time, generated request ID, method, bounded normalized route, status, safe code,
+      and duration; 4xx are warning and 5xx error.
+    - Exclude bodies, query values, credentials, authorization headers, SQL values, raw driver/exception
+      text, and locals; unexpected errors retain only safe class/frame information.
+    - File failures produce safe stdout diagnostics without failing successful searches; repeated setup
+      avoids duplicate handlers.
+    - Test encoding/log forgery, bounds, secret-like input redaction, real rotation, file fallback, and
+      request isolation.
+    tests:
+    - .venv/bin/python -m pytest -q tests/test_observability.py
+    status: done
+    assigned_provider: openai
+    assigned_model: gpt-6.1-sol
+    start_head: ad1d4a9259c42fed11182eb7a14e5c0877f45e35
+    started_at: '2026-11-05T00:59:53+00:00'
+    commit: 7d5a1df2a19cc824b93e9d905749101ce9969ab3
+    completed_at: '2026-11-05T01:05:44+00:00'
+    check_evidence: Orchestrator inspected clean scoped 7d5a1df; configured Ruff format/lint and ty independently
+      passed; pytest 165 passed/30 skipped including 19 logging cases for redaction, real rotation, and
+      safe file fallback.
+    quality_evidence:
+    - command:
+      - .venv/bin/ruff
+      - format
+      - --check
+      - .
+      exit_code: 0
+      output_tail: 19 files already formatted
+    - command:
+      - .venv/bin/ruff
+      - check
+      - .
+      exit_code: 0
+      output_tail: All checks passed!
+    - command:
+      - .venv/bin/ty
+      - check
+      exit_code: 0
+      output_tail: All checks passed!
+    - command:
+      - .venv/bin/python
+      - -m
+      - pytest
+      - -q
+      exit_code: 0
+      output_tail: '........................ssssssssssssssssssssssssssssss.................. [ 36%]
+
+        ........................................................................ [ 73%]
+
+        ...................................................                      [100%]
+
+        165 passed, 30 skipped in 0.61s'
+  - id: T005
+    title: Wire search, health, readiness, and HTTP error contracts
+    description: Implement the app factory, bounded body decoding, threaded database dispatch, typed output/docs,
+      safe status mapping, and correlated non-200 logging.
+    difficulty: medium
+    depends_on:
+    - T003
+    - T004
+    files:
+    - src/sumble_api/app.py
+    - src/sumble_api/observability.py
+    - src/sumble_api/models.py
+    - tests/test_api.py
+    - tests/test_observability.py
+    - tests/conftest.py
+    prd_sections:
+    - Users and key workflows
+    - Interfaces, inputs, outputs, and error behavior
+    - Acceptance scenarios and edge cases
+    architecture_sections:
+    - Public interfaces and contracts
+    - Component responsibilities
+    - Packaging, local execution, and verification
+    acceptance:
+    - POST /jobs/search accepts query-only/controlled requests, runs blocking DB calls off the event loop,
+      and returns a bare Job array with generated request-ID header.
+    - Bound actual streamed bytes to 16384 despite absent/false Content-Length and body reading to 5 seconds;
+      reject unsupported type and malformed/overdeep JSON.
+    - Map malformed JSON 400, slow body 408, oversized body 413, media type 415, validation 422, unavailable
+      DB 503, timeout 504, and unexpected errors 500 to safe documented envelopes.
+    - GET /health needs no DB; /ready checks schema and returns 200/503; /docs describes grammar, controls/defaults/bounds,
+      responses, and examples.
+    - Completed non-200 events include unknown routes, method errors, readiness failures, and exceptions;
+      aborted requests are recorded separately.
+    - No framework traceback, validation input echo, raw SQL/driver error, or credential leaks through
+      responses/logs; imports remain connection-free.
+    tests:
+    - .venv/bin/python -m pytest -q tests/test_api.py tests/test_observability.py
+    status: in_progress
+    assigned_provider: openai
+    assigned_model: gpt-6.1-sol
+    start_head: 7d5a1df2a19cc824b93e9d905749101ce9969ab3
+    started_at: '2026-11-05T01:05:45+00:00'
+  - id: T006
+    title: Bound concurrency and preserve cleanup on cancellation
+    description: Add nonwaiting admission before body reading, independent readiness capacity, and cancellation-safe
+      worker lifetime accounting under errors, overload, and disconnects.
+    difficulty: high
+    depends_on:
+    - T005
+    files:
+    - src/sumble_api/app.py
+    - src/sumble_api/database.py
+    - tests/test_concurrency.py
+    - tests/test_api.py
+    - tests/test_database.py
+    - tests/conftest.py
+    prd_sections:
+    - Nonfunctional requirements
+    - Functional requirements
+    - Acceptance scenarios and edge cases
+    architecture_sections:
+    - Packaging, local execution, and verification
+    - Data flow and key constraints
+    acceptance:
+    - Default four admitted searches; allow MAX_CONCURRENT_SEARCHES integers 1–16 and fail startup on
+      invalid deployment config.
+    - Acquire capacity before body allocation with no waiting queue; excess searches get 503/server_busy,
+      Retry-After 1, request IDs, and normal safe logging.
+    - Readiness has one separately bounded DB operation, with no probe queue; /health stays independent
+      and responsive under saturation.
+    - Retain the search slot until worker/SQL and cleanup finish after cancellation/disconnect; disable
+      worker-result abandonment and do not block the event loop.
+    - Deterministic synchronization proves no more than the configured searches plus one readiness operation;
+      do not rely on timing-only assertions.
+    - Verify capacity/connection recovery after validation failure, slow upload, execution error, real
+      SQL timeout, and cancellation, followed by success.
+    tests:
+    - .venv/bin/python -m pytest -q tests/test_concurrency.py tests/test_api.py
+    - env SUMBLE_RUN_INTEGRATION=1 .venv/bin/python -m pytest -q -m integration tests/test_database.py
+      tests/test_concurrency.py
+    status: todo
+  - id: T007
+    title: Verify real-image delivery and build the submission ZIP
+    description: Finalize Docker delivery/docs, run real-dataset acceptance and benchmarks, and implement
+      allowlisted ZIP packaging with clean-extraction startup verification. Report core regressions for
+      scoped corrective work rather than unrelated edits.
+    difficulty: medium
+    depends_on:
+    - T006
+    files:
+    - Dockerfile
+    - docker-compose.yml
+    - .dockerignore
+    - .gitignore
+    - README.md
+    - docs/database.md
+    - docs/validation.md
+    - docs/code-flow.md
+    - scripts/package.py
+    - tests/test_database.py
+    - tests/test_concurrency.py
+    prd_sections:
+    - Problem and goals
+    - Users and key workflows
+    - Nonfunctional requirements
+    - Acceptance scenarios and edge cases
+    architecture_sections:
+    - Packaging, local execution, and verification
+    - Tradeoffs and alternatives
+    acceptance:
+    - Stop only sumble-schema-inspection before Compose claims port 5432; preserve unrelated containers
+      and public dataset rows.
+    - Compose starts ready non-root API/database without undocumented setup, with pinned images, local
+      bindings, health checks, persistent app_logs, and bounded Docker logs.
+    - Run both required real-image HTTP examples and independently verify IDs with straightforward SQL;
+      default Apple AND .net is under 30 seconds after readiness.
+    - Record environment/image versions, timing distributions/throughput at concurrency 1 and 4, overload/errors,
+      every sort key/direction, and a deep offset; label SQL probes separately.
+    - Verify error-file persistence across container recreation; document safe log inspection/deletion
+      and bounded retention.
+    - README covers required/nested curl examples, paging/sorting/timeouts/defaults, errors, integration
+      test setup, DBeaver, cleanup, and cross-page consistency limits.
+    - build_submission uses an explicit source/tests/docs/config/lock allowlist, fails on missing inputs,
+      and excludes external symlinks, secrets, Git/workflow/worktrees, caches/logs, and DB files.
+    - Inspect the actual ZIP and verify clean extraction starts via the required Compose command; preserve
+      evidence and state any external limitations.
+    - Deliver a local reviewable ZIP; form upload/identity details remain a separate final delivery step
+      after the artifact exists.
+    tests:
+    - .venv/bin/python -m pytest -q
+    - docker compose config --quiet
+    - docker compose up --build --wait --wait-timeout 180
+    - env SUMBLE_RUN_INTEGRATION=1 .venv/bin/python -m pytest -q -m integration
+    - .venv/bin/python -c 'from pathlib import Path; from scripts.package import build_submission; print(build_submission(Path("dist/sumble-advanced-queries.zip")))'
+    status: todo
+  branch: epic/e001-advanced-boolean-job-search-api
+  worktree: /NAS/sumble-project/.worktrees/E001
