@@ -4,11 +4,13 @@ worktree_dir: .worktrees
 # Configure actual provider-specific model IDs available in your agent client.
 # No models or CLIs are assumed to exist.
 routing:
-  low: {provider: openai, model: null}
-  medium: {provider: openai, model: null}
-  high: {provider: openai, model: null}
+  low: {provider: openai, model: gpt-6-luna, reasoning_effort: low}
+  medium: {provider: openai, model: gpt-6.1-sol, reasoning_effort: medium}
+  high: {provider: openai, model: gpt-6.1-sol, reasoning_effort: high}
 review:
-  # These are the user's desired reviewer labels, not verified API model IDs.
+  # Executable model IDs are advertised by the native collaboration host.
+  model: gpt-6.1-sol
+  reasoning_effort: max
   candidates:
     - "GPT Sol (maximum thinking)"
     - "Grok 4.7 (maximum thinking)"
@@ -23,9 +25,9 @@ runners: {}
 # and dev dependencies to the APPROVED skeleton. Commands are argv (not shell).
 # Enabled gates are independently executed at ticket completion and review pass.
 quality:
-  enabled: false
+  enabled: true
   commands:
-    - [ruff, format, --check, .]
-    - [ruff, check, .]
-    - [ty, check]
-    - [python, -m, pytest, -q]
+    - [.venv/bin/ruff, format, --check, .]
+    - [.venv/bin/ruff, check, .]
+    - [.venv/bin/ty, check]
+    - [.venv/bin/python, -m, pytest, -q]
