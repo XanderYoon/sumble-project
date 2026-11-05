@@ -1,8 +1,12 @@
 """Bounded HTTP input, safe responses, and database-independent request logging."""
 
+import asyncio
 import json
 import os
+from collections.abc import Callable
+from functools import partial
 from pathlib import Path
+from threading import BoundedSemaphore
 from time import monotonic
 from typing import NoReturn
 
@@ -68,6 +72,15 @@ class PublicError(Exception):
         self.path = path
 
 
+class ServerBusyError(PublicError):
+    """Report exhausted search or readiness capacity without a waiting queue."""
+
+    def __init__(self) -> None:
+        """Select the fixed overload response independently of database failures."""
+        super().__init__(503, "Server is busy. Try again shortly.")
+        self.code = "server_busy"
+
+
 def _error_response(scope: Scope, error: PublicError) -> JSONResponse:
     scope.setdefault("state", {})["error_code"] = error.code
     body = ErrorResponse(
@@ -78,7 +91,10 @@ def _error_response(scope: Scope, error: PublicError) -> JSONResponse:
             path=error.path,
         )
     )
-    return JSONResponse(body.model_dump(exclude_none=True), status_code=error.status)
+    headers = {"Retry-After": "1"} if isinstance(error, ServerBusyError) else None
+    return JSONResponse(
+        body.model_dump(exclude_none=True), status_code=error.status, headers=headers
+    )
 
 
 class RequestMiddleware:
@@ -186,12 +202,49 @@ def _reject_constant(value: str) -> NoReturn:
     raise ValueError("Nonstandard JSON constant.")
 
 
+def _search_capacity() -> int:
+    value = os.environ.get("MAX_CONCURRENT_SEARCHES", "4")
+    if not value.isascii() or not value.isdecimal() or not 1 <= int(value) <= 16:
+        raise ValueError("MAX_CONCURRENT_SEARCHES must be an integer from 1 to 16.")
+    return int(value)
+
+
+async def _run_worker[T](operation: Callable[[], T]) -> T:
+    """Finish synchronous work and cleanup before propagating cancellation.
+
+    AnyIO shielding covers cancel scopes. The separate asyncio task also protects
+    against direct ASGI task cancellation, which bypasses AnyIO's shield. Repeated
+    cancellation must never release admission while the worker is still running.
+    """
+    with anyio.CancelScope(shield=True):
+        worker = asyncio.create_task(anyio.to_thread.run_sync(operation, abandon_on_cancel=False))
+        cancellation: asyncio.CancelledError | None = None
+        while not worker.done():
+            try:
+                await asyncio.shield(worker)
+            except asyncio.CancelledError as error:
+                cancellation = error
+            except Exception:
+                if cancellation is None:
+                    raise
+                # Once the transport is cancelled, preserve that outcome even if work fails.
+        if cancellation is not None:
+            # Retrieve any worker exception, but preserve the transport cancellation.
+            try:
+                worker.result()
+            finally:
+                raise cancellation from None
+    return worker.result()
+
+
 def create_app() -> FastAPI:
     """Construct routes and logging without opening database connections.
 
     Returns:
         An application with bounded input and correlated, safe error responses.
     """
+    searches = BoundedSemaphore(_search_capacity())
+    readiness = BoundedSemaphore(1)
     observability.configure_logging(Path(os.environ.get("LOG_DIR", "/var/log/sumble")))
     app = FastAPI(title="Sumble Boolean Job Search", description=_DESCRIPTION)
     app.add_middleware(RequestMiddleware)
@@ -317,18 +370,21 @@ def create_app() -> FastAPI:
         },
     )
     async def search(request: Request) -> list[Job]:
+        if not searches.acquire(blocking=False):
+            raise ServerBusyError
         try:
-            validated = query.parse_query(await _read_payload(request))
-        except query.QueryValidationError as error:
-            raise PublicError(422, error.message, error.path) from None
-        try:
-            return await anyio.to_thread.run_sync(
-                database.search_jobs, validated, abandon_on_cancel=False
-            )
-        except database.SearchTimeoutError:
-            raise PublicError(504) from None
-        except database.DatabaseUnavailableError:
-            raise PublicError(503) from None
+            try:
+                validated = query.parse_query(await _read_payload(request))
+            except query.QueryValidationError as error:
+                raise PublicError(422, error.message, error.path) from None
+            try:
+                return await _run_worker(partial(database.search_jobs, validated))
+            except database.SearchTimeoutError:
+                raise PublicError(504) from None
+            except database.DatabaseUnavailableError:
+                raise PublicError(503) from None
+        finally:
+            searches.release()
 
     @app.get("/health")
     async def health() -> dict[str, str]:
@@ -336,10 +392,15 @@ def create_app() -> FastAPI:
 
     @app.get("/ready", responses={503: {"model": ErrorResponse}})
     async def ready() -> dict[str, str]:
+        if not readiness.acquire(blocking=False):
+            raise ServerBusyError
         try:
-            await anyio.to_thread.run_sync(database.check_database, abandon_on_cancel=False)
-        except database.DatabaseUnavailableError:
-            raise PublicError(503) from None
-        return {"status": "ready"}
+            try:
+                await _run_worker(database.check_database)
+            except database.DatabaseUnavailableError:
+                raise PublicError(503) from None
+            return {"status": "ready"}
+        finally:
+            readiness.release()
 
     return app
