@@ -235,3 +235,33 @@ diagram and skeleton. Recorded `approve skeleton`; workflow is phase planning.
 The approved scaffold and persisted control documents are to be committed to
 main before ticket execution. Implementation and board approval remain pending.
 
+## Proposed board and executable worktree quality gates
+
+Committed the approved baseline as `76cb973` on main. Read TICKET_RULES.md and
+drafted one capability epic with seven sequential, independently committed
+tickets. T006 uses high difficulty for cancellation/resource-accounting
+invariants; remaining tickets use medium. Each ticket has acceptance criteria,
+scoped files, references, dependencies, and executable checks.
+
+Configured only model IDs advertised by the native collaboration host:
+medium gpt-6.1-sol/medium reasoning, high gpt-6.1-sol/high, unused low
+gpt-6-luna/low; fresh independent reviewer gpt-6.1-sol/max. No agent has been
+spawned and no ticket started. Runners remain empty because native collaboration
+will provide fresh agents directly rather than an unconfigured CLI adapter.
+
+Enabled quality with per-worktree .venv/bin Ruff-format, Ruff-lint, ty, and pytest
+argv commands. A local ignored Python 3.14 environment is prepared from the
+locked dev requirements; interpreter/cache installation uses /tmp. Local uv
+catalog supplied 3.14.2; Docker remains pinned/verified at 3.14.10. Standard
+activated-environment test command remains python -m pytest -q.
+
+See PLAN_REVIEW.md for the concrete proposed routing, setup, quality policy,
+integration checks, and final delivery checks. Await explicit board approval;
+do not infer it from the earlier skeleton LGTM.
+
+## Board approval
+
+User replied "LGTM" to the explicit request to approve the board, routing, and
+quality settings. Record board approval and begin sequential isolated ticket
+execution with fresh native agents and independently rerun quality checks.
+
