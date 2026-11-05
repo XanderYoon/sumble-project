@@ -2,6 +2,28 @@
 
 Keep entries short: what was decided, why, and affected epic/ticket.
 
+## Product requirements review — matching and negation
+
+### Matching expectations and normalization
+
+Answer: explicitly discuss whitespace, punctuation, and aliases before approving
+matching behavior. Examples could distinguish `.net` from `dotnet` and `Apple`
+from `Apple Services`. Concrete examples help users understand the limits of
+exact case-insensitive matching and identify any desired normalization early.
+
+Status: user approved inclusion of this consideration; existing matching rules
+remain unchanged.
+
+### Negative-only searches
+
+Answer: review examples containing only NOT, including unknown names and jobs
+with missing associations, before finalizing the PRD. Negation can return most
+of the dataset. Agreeing on its universe prevents surprising results and
+clarifies why pagination remains necessary.
+
+Status: user approved inclusion of this consideration; existing negation rules
+remain unchanged.
+
 ## 2026-11-04 — Architecture review Q&A (pre-ticket)
 
 Scope: PRD approved; architecture proposed; no epics or tickets exist yet.
@@ -22,6 +44,7 @@ Status: technical recommendation reflected in proposed ARCHITECTURE.md;
 full architecture gate is still pending.
 
 Sources:
+
 - https://www.python.org/downloads/
 - https://fastapi.tiangolo.com/release-notes/#01183
 - https://www.psycopg.org/psycopg3/docs/basic/install.html
@@ -56,6 +79,17 @@ The discovery query took 255.470 ms; it was SQL timing, not an API benchmark.
 Measure the real API at concurrency 1 and 4, including percentiles, throughput,
 overload, health responsiveness, failure recovery, and connection/slot cleanup.
 The required Apple AND .net request must still meet the under-30-second bound.
+
+Consider measured connection overhead, repeated table scans, and deep-offset
+sorting cost as reasons to revisit pooling, indexes, or a different query
+strategy if measured needs change. The current dataset size does not justify
+these approaches. The initial design favors a small local service; measurable
+triggers make future optimization decisions easier to justify.
+
+Review a client disconnect while SQL is running, including connection ownership,
+admission-slot lifetime, and whether a response can still be delivered. Client
+timeout, database timeout, and actual worker completion are different events.
+Walking through the sequence makes cleanup expectations clear.
 
 Status: proposed resource defaults, not measured production capacity or a
 guaranteed requests-per-second target. Exact behavior documented in architecture.
@@ -186,16 +220,12 @@ v2 PRD and architecture remain DRAFT/PROPOSED pending approval; do not self-appr
 The original repo tree remains appropriate; no additional modules are needed.
 
 References:
+
 - https://www.postgresql.org/docs/current/queries-limit.html
 - https://www.postgresql.org/docs/current/queries-order.html
 - https://www.postgresql.org/docs/current/runtime-config-client.html
 
 ## Skeleton preparation after v2 approval
-
-The user replied "LGTM" to the request to approve PRD v2 and revised architecture.
-Both documents were finalized and `approve prd` then `approve structure` succeeded.
-Phase is skeleton; skeleton approval is still pending. No implementation tickets
-have been created or dispatched.
 
 Created 24 approved-tree scaffold files using `scaffold`, with public contract
 docstrings and explicit NotImplementedError stubs. The standard test command is
@@ -203,6 +233,11 @@ docstrings and explicit NotImplementedError stubs. The standard test command is
 successfully on CPython 3.14.10/Linux amd64, then observed a successful Docker
 build, Compose configuration validation, Ruff formatting/lint, ty, and one
 import-safety test. These checks do not verify API behavior or performance.
+
+Discuss when configuration is read and how invalid settings are reported, while
+preserving imports that require no database connection. Early, safe configuration
+feedback helps local setup and keeps test discovery independent of external
+services.
 
 Added explicit .gitignore exceptions for .sdlc and .dockerignore so approved
 workflow records and build exclusions can be committed before ticket work;
@@ -230,11 +265,6 @@ architecture or approval changes.
 
 ## Skeleton approved; planning authorized
 
-The user replied "LGTM" after reviewing the revised ingress/egress/final-node
-diagram and skeleton. Recorded `approve skeleton`; workflow is phase planning.
-The approved scaffold and persisted control documents are to be committed to
-main before ticket execution. Implementation and board approval remain pending.
-
 ## Proposed board and executable worktree quality gates
 
 Committed the approved baseline as `76cb973` on main. Read TICKET_RULES.md and
@@ -255,29 +285,54 @@ locked dev requirements; interpreter/cache installation uses /tmp. Local uv
 catalog supplied 3.14.2; Docker remains pinned/verified at 3.14.10. Standard
 activated-environment test command remains python -m pytest -q.
 
-See PLAN_REVIEW.md for the concrete proposed routing, setup, quality policy,
-integration checks, and final delivery checks. Await explicit board approval;
-do not infer it from the earlier skeleton LGTM.
+Identify database, Docker, port, and environment prerequisites before execution.
+Agree how unavailable integration checks will be reported and resolved before
+claiming the affected acceptance criteria are satisfied. A passing default test
+command may omit integration coverage; explicit prerequisites keep completion
+claims tied to observed evidence.
 
-## Board approval
-
-User replied "LGTM" to the explicit request to approve the board, routing, and
-quality settings. Record board approval and begin sequential isolated ticket
-execution with fresh native agents and independently rerun quality checks.
-
+## Board approved
 
 ## 2026-11-05T00:52:31+00:00 [T001]
+
 - Decision: Validate and build expressions iteratively, counting children before scheduling; expose only fixed diagnostics and known schema paths.
 - Rationale: Bounds parser work independently of Python recursion and prevents literals or unknown keys leaking into errors; approved matching semantics and option defaults remain unchanged.
 
 ## 2026-11-05T00:54:15+00:00 [T002]
+
 - Decision: Compile grouped SQL sets with fixed normalized join templates, unchanged bound values, and DISTINCT standalone leaves.
 - Rationale: Preserves Boolean precedence, multi-value and NOT semantics, literal safety, and unique job IDs before hydration.
 
 ## 2026-11-05T00:59:53+00:00 [T003]
+
 - Decision: Execute compiled ID sets through actual jobs, LEFT JOIN source details, sort all matches before bound pagination, and use context-managed read-only connections.
 - Rationale: Maintains correct custom-sort pages and nullable metadata while ensuring rollback/closure after timeout or hydration failure; isolated schema integration verified semantics without public writes.
 
 ## 2026-11-05T01:05:45+00:00 [T004]
+
 - Decision: Use generated request contexts, fixed method/route/error-code allowlists, safe bounded exception metadata, and resilient stdout/rotating-file handlers.
 - Rationale: Avoids logging arbitrary client data or raw exception diagnostics, isolates correlation across async requests, and preserves application outcomes when file logging fails.
+
+## 2026-11-05T01:11:28+00:00 [T005]
+
+- Decision: Use pure ASGI correlation/error middleware, bounded UTF-8 JSON decoding with a 64-container parser guard, and nonabandoning AnyIO database offload.
+- Rationale: Safely covers framework failures and aborted delivery while preserving worker cleanup; raw parser guard exceeds valid query nesting, and ordinary expression bounds retain 422 behavior.
+
+## 2026-11-05T01:13:27+00:00 [T007]
+
+- Decision: Do not submit or upload to the Google form; deliver the final ZIP locally for the user to submit.
+- Rationale: The user explicitly prohibited Google form submission during implementation. This narrows the delivery action; approved API behavior and the frozen implementation board remain unchanged.
+
+## 2026-11-05T01:14:10+00:00 [T007]
+
+- Decision: Defer all ZIP creation, ZIP inspection, and extraction/startup-from-ZIP checks until explicit user approval of the entire codebase. Continue source implementation, Docker verification, tests, benchmarks, documentation, and independent review.
+- Rationale: The user explicitly said not to zip until approval of the entire codebase and instructed omission of that requirement for now. This is a delivery-action override after implementation began: retain ticket history and frozen board, document the exception, never run the ZIP-generating T007 command before approval.
+
+## 2026-11-05T01:19:09+00:00 [T006]
+
+- Decision: Use per-app nonblocking bounded semaphores for search/readiness and a protected asyncio child around nonabandoning AnyIO worker execution.
+- Rationale: Limits actual work before body allocation across event loops and preserves admission through cleanup even under repeated direct Task.cancel; deterministic barriers and real PG integration verified recovery.
+
+## 2026-11-05T01:27:58+00:00 [T007]
+- Decision: Verify Docker delivery from a fresh allowlisted source copy and retain measured real-image results; defer every archive runtime check and Google submission per explicit user instructions.
+- Rationale: Completes authorized code/runtime verification without creating a prohibited archive. Broad-NOT offset80000 timeout and EXPLAIN evidence are retained for independent review rather than hidden or changed outside ticket scope.

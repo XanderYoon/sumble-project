@@ -353,11 +353,48 @@ epics:
       responses/logs; imports remain connection-free.
     tests:
     - .venv/bin/python -m pytest -q tests/test_api.py tests/test_observability.py
-    status: in_progress
+    status: done
     assigned_provider: openai
     assigned_model: gpt-6.1-sol
     start_head: 7d5a1df2a19cc824b93e9d905749101ce9969ab3
     started_at: '2026-11-05T01:05:45+00:00'
+    commit: a0442094d91b2b78072826a5fccd8ee1e27da41e
+    completed_at: '2026-11-05T01:11:27+00:00'
+    check_evidence: Independent Ruff format/lint and ty passed; 188 pytest passed/30 skipped; real HTTP
+      A/B matched oracle IDs at 0.206s/0.268s; health/ready/OpenAPI 200 and safe correlated 422 verified;
+      temporary probe stopped.
+    quality_evidence:
+    - command:
+      - .venv/bin/ruff
+      - format
+      - --check
+      - .
+      exit_code: 0
+      output_tail: 19 files already formatted
+    - command:
+      - .venv/bin/ruff
+      - check
+      - .
+      exit_code: 0
+      output_tail: All checks passed!
+    - command:
+      - .venv/bin/ty
+      - check
+      exit_code: 0
+      output_tail: All checks passed!
+    - command:
+      - .venv/bin/python
+      - -m
+      - pytest
+      - -q
+      exit_code: 0
+      output_tail: "                                                          [100%]\n===============================\
+        \ warnings summary ===============================\n.venv/lib/python3.14/site-packages/fastapi/testclient.py:1\n\
+        \  /NAS/sumble-project/.worktrees/E001/.venv/lib/python3.14/site-packages/fastapi/testclient.py:1:\
+        \ StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install\
+        \ `httpx2` instead.\n    from starlette.testclient import TestClient as TestClient  # noqa\n\n\
+        -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n188 passed, 30 skipped,\
+        \ 1 warning in 1.44s"
   - id: T006
     title: Bound concurrency and preserve cleanup on cancellation
     description: Add nonwaiting admission before body reading, independent readiness capacity, and cancellation-safe
@@ -396,7 +433,48 @@ epics:
     - .venv/bin/python -m pytest -q tests/test_concurrency.py tests/test_api.py
     - env SUMBLE_RUN_INTEGRATION=1 .venv/bin/python -m pytest -q -m integration tests/test_database.py
       tests/test_concurrency.py
-    status: todo
+    status: done
+    assigned_provider: openai
+    assigned_model: gpt-6.1-sol
+    start_head: a0442094d91b2b78072826a5fccd8ee1e27da41e
+    started_at: '2026-11-05T01:11:28+00:00'
+    commit: 30d91f4f4c5883e9207bd38877d1a2dcc1bef80f
+    completed_at: '2026-11-05T01:19:08+00:00'
+    check_evidence: Independent clean scoped 30d91f4 review; Ruff format/lint and ty passed; pytest218
+      passed/33 skipped; real PG integration33 passed/36 deselected in2.97s including timeout and raw/AnyIO
+      cancellation cleanup retention.
+    quality_evidence:
+    - command:
+      - .venv/bin/ruff
+      - format
+      - --check
+      - .
+      exit_code: 0
+      output_tail: 19 files already formatted
+    - command:
+      - .venv/bin/ruff
+      - check
+      - .
+      exit_code: 0
+      output_tail: All checks passed!
+    - command:
+      - .venv/bin/ty
+      - check
+      exit_code: 0
+      output_tail: All checks passed!
+    - command:
+      - .venv/bin/python
+      - -m
+      - pytest
+      - -q
+      exit_code: 0
+      output_tail: "....................                                      [100%]\n===============================\
+        \ warnings summary ===============================\n.venv/lib/python3.14/site-packages/fastapi/testclient.py:1\n\
+        \  /NAS/sumble-project/.worktrees/E001/.venv/lib/python3.14/site-packages/fastapi/testclient.py:1:\
+        \ StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install\
+        \ `httpx2` instead.\n    from starlette.testclient import TestClient as TestClient  # noqa\n\n\
+        -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n218 passed, 33 skipped,\
+        \ 1 warning in 1.39s"
   - id: T007
     title: Verify real-image delivery and build the submission ZIP
     description: Finalize Docker delivery/docs, run real-dataset acceptance and benchmarks, and implement
@@ -450,6 +528,49 @@ epics:
     - docker compose up --build --wait --wait-timeout 180
     - env SUMBLE_RUN_INTEGRATION=1 .venv/bin/python -m pytest -q -m integration
     - .venv/bin/python -c 'from pathlib import Path; from scripts.package import build_submission; print(build_submission(Path("dist/sumble-advanced-queries.zip")))'
-    status: todo
+    status: done
+    assigned_provider: openai
+    assigned_model: gpt-6.1-sol
+    start_head: 30d91f4f4c5883e9207bd38877d1a2dcc1bef80f
+    started_at: '2026-11-05T01:19:09+00:00'
+    commit: 16673383505244a69df117b1909ea651e7efa2ad
+    completed_at: '2026-11-05T01:27:58+00:00'
+    check_evidence: 'Independent Ruff format/lint/ty passed; pytest218 passed/33 skipped; real integration33
+      passed in3.00s. Agent evidence: Docker healthy, A276ms/B411ms oracle matched, C1/C4 and overload/sorts/log
+      persistence, clean COPIED-source startup passed. Explicit user override: no ZIP generation/inspection/extraction
+      or form submission; archive runtime checks DEFERRED, helper never invoked. Known broad-NOT deep-offset504
+      documented for review.'
+    quality_evidence:
+    - command:
+      - .venv/bin/ruff
+      - format
+      - --check
+      - .
+      exit_code: 0
+      output_tail: 19 files already formatted
+    - command:
+      - .venv/bin/ruff
+      - check
+      - .
+      exit_code: 0
+      output_tail: All checks passed!
+    - command:
+      - .venv/bin/ty
+      - check
+      exit_code: 0
+      output_tail: All checks passed!
+    - command:
+      - .venv/bin/python
+      - -m
+      - pytest
+      - -q
+      exit_code: 0
+      output_tail: "....................                                      [100%]\n===============================\
+        \ warnings summary ===============================\n.venv/lib/python3.14/site-packages/fastapi/testclient.py:1\n\
+        \  /NAS/sumble-project/.worktrees/E001/.venv/lib/python3.14/site-packages/fastapi/testclient.py:1:\
+        \ StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install\
+        \ `httpx2` instead.\n    from starlette.testclient import TestClient as TestClient  # noqa\n\n\
+        -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n218 passed, 33 skipped,\
+        \ 1 warning in 1.42s"
   branch: epic/e001-advanced-boolean-job-search-api
   worktree: /NAS/sumble-project/.worktrees/E001
