@@ -1,0 +1,66 @@
+[build-system]
+requires = ["setuptools==80.9.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sumble-advanced-queries"
+version = "0.1.0"
+description = "Boolean job search API for the supplied Sumble PostgreSQL dataset"
+requires-python = ">=3.14,<3.15"
+dependencies = [
+  "fastapi==0.162.0", "uvicorn==0.54.0", "psycopg[binary]==3.3.8",
+  "anyio==4.16.0", "pydantic==2.14.2",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "--strict-markers"
+markers = ["integration: requires an explicitly configured PostgreSQL test database"]
+
+[tool.ruff]
+target-version = "py314"
+line-length = 100
+src = ["src", "tests", "scripts"]
+extend-exclude = [".agents", ".sdlc", ".worktrees"]
+
+[tool.ruff.lint]
+select = [
+  "E4", "E7", "E9",  # Core pycodestyle errors
+  "F",                # Pyflakes
+  "I",                # Import sorting
+  "B",                # Bugbear correctness
+  "UP",               # Modernize syntax for target Python
+  "C4",               # Comprehension simplifications
+  "SIM",              # Avoid redundant control flow
+  "RUF",              # Ruff-specific mistakes
+  "ANN",              # Annotate public and internal function signatures
+  "D",                # Document public APIs
+]
+ignore = ["D203", "D213", "ANN401"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["D", "ANN"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.ty.environment]
+python-version = "3.14"
+
+[tool.ty.src]
+include = ["src", "tests", "scripts"]
+
+[tool.ty.rules]
+# Default ty errors still apply. No global suppression/baseline.
+import-not-found = "error"
+invalid-assignment = "error"
+invalid-return-type = "error"
+unused-ignore-comment = "error"

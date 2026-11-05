@@ -1,0 +1,41 @@
+services:
+  db:
+    image: nzsne8pttnh8wrpu/p2ckp9ddret2arc2@sha256:714ff812e4d1ceb832ac41bc1a7d471cd5485fe14cb7a01b705909933a11097d
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d sumble_data"]
+      interval: 1s
+      timeout: 3s
+      retries: 60
+    logging: &rotated_logs
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+  application:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      PGHOST: db
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: supersecretpassword
+      PGDATABASE: sumble_data
+      MAX_CONCURRENT_SEARCHES: "4"
+      LOG_DIR: /var/log/sumble
+    volumes:
+      - app_logs:/var/log/sumble
+    healthcheck:
+      test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/ready', timeout=6)"]
+      interval: 10s
+      timeout: 7s
+      start_period: 10s
+      retries: 6
+    logging: *rotated_logs
+volumes:
+  app_logs:

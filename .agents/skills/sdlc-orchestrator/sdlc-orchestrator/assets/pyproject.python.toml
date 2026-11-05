@@ -1,0 +1,50 @@
+# Example for a NEW Python application. Adapt package name, Python version,
+# and src layout when approving the code skeleton. Do not overwrite an
+# existing pyproject.toml merely to add lint/type configuration.
+[project]
+name = "replace-with-project-name"
+version = "0.1.0"
+requires-python = ">=3.10"
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+  "E4", "E7", "E9",  # Core pycodestyle errors
+  "F",                # Pyflakes
+  "I",                # Import sorting
+  "B",                # Bugbear correctness
+  "UP",               # Modernize syntax for target Python
+  "C4",               # Comprehension simplifications
+  "SIM",              # Avoid redundant control flow
+  "RUF",              # Ruff-specific mistakes
+  "ANN",              # Annotate public and internal function signatures
+  "D",                # Document public APIs
+]
+ignore = ["D203", "D213", "ANN401"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["D", "ANN"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.ty.environment]
+python-version = "3.10"
+
+[tool.ty.src]
+include = ["src", "tests"]
+
+[tool.ty.rules]
+# Default ty errors still apply. No global suppression/baseline.
+import-not-found = "error"
+invalid-assignment = "error"
+invalid-return-type = "error"
+unused-ignore-comment = "error"

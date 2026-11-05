@@ -1,0 +1,5 @@
+-r requirements.txt
+# Pin these to exact versions in an actual project's lockfile for reproducible CI.
+ruff>=0.14,<1
+ty>=0.0.97,<0.1
+pytest>=8,<10

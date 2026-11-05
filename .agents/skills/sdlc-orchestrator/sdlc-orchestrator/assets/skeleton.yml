@@ -1,0 +1,4 @@
+version: 1
+# Explicit, approved manifest. Existing files are NEVER overwritten by scaffold.
+# One entry per source/config/test file; content may include concise stubs/docstrings.
+files: []

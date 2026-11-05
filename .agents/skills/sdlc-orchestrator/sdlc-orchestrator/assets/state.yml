@@ -1,0 +1,7 @@
+version: 1
+phase: prd
+approvals:
+  prd: null
+  structure: null
+  skeleton: null
+  board: null

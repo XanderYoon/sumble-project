@@ -1,0 +1,58 @@
+version: 1
+project: Example Project
+epics:
+  - id: E001
+    title: Local storage
+    goal: Persist records correctly across restarts.
+    depends_on: []
+    acceptance:
+      - Data survives process restart.
+    status: todo
+    tickets:
+      - id: T001
+        title: Define storage interface
+        description: Create an interface used by storage implementations.
+        difficulty: low
+        depends_on: []
+        files: [src/storage.py, tests/test_storage.py]
+        prd_sections: [Functional requirements]
+        architecture_sections: [Component responsibilities]
+        acceptance:
+          - Interface documents expected behavior and errors.
+        tests:
+          - python -m pytest tests/test_storage.py
+        status: todo
+      - id: T002
+        title: Implement durable persistence
+        description: Implement the storage interface with crash-safe writes.
+        difficulty: medium
+        depends_on: [T001]
+        files: [src/storage.py, tests/test_storage.py]
+        prd_sections: [Nonfunctional requirements]
+        architecture_sections: [Data flow and key constraints]
+        acceptance:
+          - Writes survive restart and read back correctly.
+        tests:
+          - python -m pytest tests/test_storage.py
+        status: todo
+  - id: E002
+    title: Command line interface
+    goal: Expose basic create and read commands.
+    depends_on: [E001]
+    acceptance:
+      - Commands work against the persisted store.
+    status: todo
+    tickets:
+      - id: T003
+        title: Add basic CLI
+        description: Add basic commands using storage API.
+        difficulty: low
+        depends_on: []
+        files: [src/cli.py, tests/test_cli.py]
+        prd_sections: ["Interfaces, inputs, outputs, and error behavior"]
+        architecture_sections: ["Public interfaces, functions, and concise docstrings"]
+        acceptance:
+          - Create and read commands return meaningful errors.
+        tests:
+          - python -m pytest tests/test_cli.py
+        status: todo

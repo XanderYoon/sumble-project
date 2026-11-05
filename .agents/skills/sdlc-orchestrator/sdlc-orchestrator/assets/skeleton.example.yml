@@ -1,0 +1,22 @@
+version: 1
+files:
+  - path: src/storage.py
+    content: |
+      """Storage component."""
+
+      def save_record(record: dict[str, str]) -> str:
+          """Persist one record.
+
+          Args:
+              record: Validated fields to store.
+          Returns:
+              Stable ID for the stored record.
+          Raises:
+              ValueError: Record fails validation.
+          Behavior:
+              Persist atomically and leave no partial record on failure.
+          """
+          raise NotImplementedError
+  - path: tests/test_storage.py
+    content: |
+      """Tests for storage success and error behaviors."""
