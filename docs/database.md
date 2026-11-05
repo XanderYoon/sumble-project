@@ -261,3 +261,52 @@ Job functions by source `total_mentions` (not local relationship counts):
 | 100 | IT Support | it-support | 258,517 |
 | 76 | Data Analyst | data-analyst | 238,378 |
 | 136 | Accountant | accountant | 176,836 |
+
+## Execution and isolation
+
+Each search opens its own connection using standard libpq `PGHOST`, `PGPORT`,
+`PGUSER`, `PGPASSWORD`, and `PGDATABASE` settings, with a three-second connection
+setup timeout. Transactions are read-only. The validated `timeout_ms` is bound
+through transaction-local `set_config` before executing the search statement;
+it does not include connection setup. Readiness uses a separate read-only
+connection and a two-second statement timeout, and resolves all required tables
+and columns without scanning or modifying source rows.
+
+The Boolean compiler produces a job-ID set. Execution filters actual `job_posts`
+through that set, LEFT JOINs details and organizations, orders all matches, and
+then applies bound limit and offset. Dictionary and relationship duplicates
+cannot duplicate output jobs. As observed in the supplied image, entity IDs
+must be unique. Missing details, organizations, and nullable source columns
+remain null in the response. Sorting uses source text and database collation,
+with nulls last in both directions and ascending ID for non-ID ties. Different
+page requests use different snapshots: intervening source changes may cause
+repeated or skipped results with offset pagination.
+
+Connections close after successful hydration. SQL errors, server cancellation,
+and hydration errors roll back and close before propagating. Public database
+exceptions contain fixed messages without driver diagnostics. No partial page
+is returned after cancellation or failed hydration.
+
+## Database tests
+
+Unit tests require no PostgreSQL connection. Real tests are opt-in:
+
+```bash
+SUMBLE_RUN_INTEGRATION=1 .venv/bin/python -m pytest -q -m integration tests/test_database.py
+```
+
+Set the standard PG variables to a local test-capable database. The fixture
+creates a unique `sumble_test_<uuid>` schema and sets each test connection's
+search path to that schema alone. It drops only that schema afterward; it never
+changes public assignment tables. The account needs permission to create schemas
+and inspect its own sessions in `pg_stat_activity`.
+
+Independent expected IDs cover nested Boolean logic, separate technology AND
+leaves, duplicate/null/missing associations, literal punctuation and injection
+strings, and every sort/direction including ties, nulls, page continuity, and
+beyond-end offsets. A view calls a one-second sleep for every hydrated row under
+a 50 ms statement timeout, forcing actual PostgreSQL cancellation. The test
+checks the connection and backend are gone and then executes a successful search.
+Other real tests cover schema errors, conversion errors, transaction read-only
+state, and per-request timeout settings.
+
