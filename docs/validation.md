@@ -10,6 +10,14 @@ API UID/GID observed as 10001/10001; database PID 1 runs as postgres.
 Only `sumble-schema-inspection` was stopped before Compose claimed port 5432;
 no public dataset writes or indexes were used. Tests use disposable schemas.
 
+These measurements describe the service as verified on that date. A later
+review change kept the same search contract and SQL, and simplified internals:
+query validation walks the expression recursively, JSON decoding no longer
+applies a separate 64-container scan, database work uses
+`anyio.to_thread.run_sync` with `abandon_on_cancel` disabled, and request logs
+record the exception class without stack frames. The figures below were not
+re-run after that change.
+
 ## Locked gates
 
 - `ruff format --check .`: passed (19 Python files).

@@ -1,6 +1,5 @@
-"""Bounded HTTP input, safe responses, and database-independent request logging."""
+"""Bounded HTTP input, safe responses, and request logging."""
 
-import asyncio
 import json
 import os
 from collections.abc import Callable
@@ -22,31 +21,6 @@ from sumble_api import database, observability, query
 from sumble_api.models import ErrorDetail, ErrorResponse, Job
 
 BODY_READ_SECONDS = 5
-_DESCRIPTION = """
-Search exact names case-insensitively using a required `query` expression in UTF-8 JSON.
-Every response includes a server-generated X-Request-ID; errors repeat it in
-error.request_id for correlation with safe structured logs.
-Leaf: `{"field":"technology","value":"python"}`. Fields: technology,
-job_function, organization. AND/OR: `{"and":[expression,...]}` or
-`{"or":[expression,...]}` with at least one child. NOT: `{"not":expression}`.
-Unknown members, ambiguous nodes, null controls, and blank values are rejected.
-Limits: 16384 actual body bytes, 5 seconds to read the body, 128 expression nodes,
-16 expression levels (root is 1), 256 characters per leaf value. JSON nesting
-beyond 64 containers is rejected as malformed input (400).
-
-Optional integer controls: limit 1-10 (default 10), offset 0-100000 (default 0),
-timeout_ms 1-25000 (default 25000; database statement only, not an HTTP deadline).
-Booleans, floats, and numeric strings are rejected. Optional sort accepts field
-(id, datetime_pulled, job_title, organization_name; default id) and direction
-(asc or desc; default asc). Either sort member may be omitted. Nulls sort last;
-non-ID ties use ID ascending. Text order follows database collation.
-
-Returns a bare job array. Advance offset by limit; fewer than limit results
-signals the end. A full final page may require a further empty page. Concurrent
-data changes can shift pages; no snapshot spans requests. Missing associations
-fail positive leaves and satisfy their negations. Values are literal exact names,
-not partial or fuzzy matches, and are not trimmed.
-"""
 _ERRORS = {
     400: ("invalid_json", "Request body must contain valid JSON."),
     408: ("request_timeout", "Request body read deadline exceeded."),
@@ -98,14 +72,14 @@ def _error_response(scope: Scope, error: PublicError) -> JSONResponse:
 
 
 class RequestMiddleware:
-    """Own correlation and catch exceptions before framework traceback logging."""
+    """Assign a server request ID, map public failures, and log one outcome."""
 
     def __init__(self, app: ASGIApp) -> None:
-        """Wrap the ASGI application without buffering request or response bodies."""
+        """Wrap the ASGI application."""
         self.app = app
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        """Record completed responses and separately record aborted delivery."""
+        """Log the request after the response, including when delivery is aborted."""
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
@@ -134,7 +108,7 @@ class RequestMiddleware:
                 except PublicError as error:
                     await _error_response(scope, error)(scope, receive, tracked_send)
                 except ClientDisconnect:
-                    pass  # No transport remains on which to deliver an error response.
+                    pass
                 except Exception as error:
                     diagnostic = error
                     if status is None:
@@ -142,7 +116,7 @@ class RequestMiddleware:
             finally:
                 route = scope.get("route")
                 observability.log_request(
-                    method=scope.get("method", ""),
+                    method=str(scope.get("method", "")),
                     route=getattr(route, "path", None),
                     status=status if completed else None,
                     code=scope.get("state", {}).get("error_code", "ok")
@@ -154,7 +128,7 @@ class RequestMiddleware:
 
 
 async def _read_payload(request: Request) -> object:
-    """Bound actual streamed bytes and the total read deadline before JSON parsing."""
+    """Bound the streamed body and decode it as UTF-8 JSON."""
     media_type = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
     if media_type != "application/json":
         raise PublicError(415)
@@ -168,37 +142,12 @@ async def _read_payload(request: Request) -> object:
     except TimeoutError:
         raise PublicError(408) from None
     try:
-        text = body.decode("utf-8")
-        _check_json_depth(body)
-        return json.loads(text, parse_constant=_reject_constant)
+        return json.loads(body, parse_constant=_reject_constant)
     except ValueError, UnicodeError, RecursionError:
         raise PublicError(400) from None
 
 
-def _check_json_depth(body: bytearray) -> None:
-    # Scan structural ASCII bytes only; brackets inside escaped strings are data.
-    depth = 0
-    quoted = False
-    escaped = False
-    for value in body:
-        if quoted:
-            if escaped:
-                escaped = False
-            elif value == 92:
-                escaped = True
-            elif value == 34:
-                quoted = False
-        elif value == 34:
-            quoted = True
-        elif value in (91, 123):
-            depth += 1
-            if depth > 64:
-                raise PublicError(400)
-        elif value in (93, 125):
-            depth -= 1
-
-
-def _reject_constant(value: str) -> NoReturn:
+def _reject_constant(_value: str) -> NoReturn:
     raise ValueError("Nonstandard JSON constant.")
 
 
@@ -210,31 +159,12 @@ def _search_capacity() -> int:
 
 
 async def _run_worker[T](operation: Callable[[], T]) -> T:
-    """Finish synchronous work and cleanup before propagating cancellation.
+    """Run blocking work to completion before a cancelled request continues.
 
-    AnyIO shielding covers cancel scopes. The separate asyncio task also protects
-    against direct ASGI task cancellation, which bypasses AnyIO's shield. Repeated
-    cancellation must never release admission while the worker is still running.
+    ``abandon_on_cancel`` is disabled, so a disconnect keeps the admission slot
+    until the worker thread returns. The slot is released by the route's finally.
     """
-    with anyio.CancelScope(shield=True):
-        worker = asyncio.create_task(anyio.to_thread.run_sync(operation, abandon_on_cancel=False))
-        cancellation: asyncio.CancelledError | None = None
-        while not worker.done():
-            try:
-                await asyncio.shield(worker)
-            except asyncio.CancelledError as error:
-                cancellation = error
-            except Exception:
-                if cancellation is None:
-                    raise
-                # Once the transport is cancelled, preserve that outcome even if work fails.
-        if cancellation is not None:
-            # Retrieve any worker exception, but preserve the transport cancellation.
-            try:
-                worker.result()
-            finally:
-                raise cancellation from None
-    return worker.result()
+    return await anyio.to_thread.run_sync(operation, abandon_on_cancel=False)
 
 
 def create_app() -> FastAPI:
@@ -246,7 +176,10 @@ def create_app() -> FastAPI:
     searches = BoundedSemaphore(_search_capacity())
     readiness = BoundedSemaphore(1)
     observability.configure_logging(Path(os.environ.get("LOG_DIR", "/var/log/sumble")))
-    app = FastAPI(title="Sumble Boolean Job Search", description=_DESCRIPTION)
+    app = FastAPI(
+        title="Sumble Boolean Job Search",
+        description="Boolean job search over the supplied dataset. The README is the request contract.",
+    )
     app.add_middleware(RequestMiddleware)
 
     @app.exception_handler(HTTPException)
@@ -262,113 +195,7 @@ def create_app() -> FastAPI:
     async def validation_error(request: Request, error: RequestValidationError) -> JSONResponse:
         return _error_response(request.scope, PublicError(422))
 
-    @app.post(
-        "/jobs/search",
-        response_model=list[Job],
-        description=_DESCRIPTION,
-        responses={
-            status: {"model": ErrorResponse, "description": message}
-            for status, (_, message) in _ERRORS.items()
-        },
-        openapi_extra={
-            "requestBody": {
-                "required": True,
-                "content": {
-                    "application/json": {
-                        "schema": {
-                            "type": "object",
-                            "required": ["query"],
-                            "additionalProperties": False,
-                            "properties": {
-                                "query": {
-                                    "type": "object",
-                                    "description": "Boolean expression as described above.",
-                                },
-                                "limit": {
-                                    "type": "integer",
-                                    "minimum": 1,
-                                    "maximum": query.MAX_LIMIT,
-                                    "default": query.DEFAULT_LIMIT,
-                                },
-                                "offset": {
-                                    "type": "integer",
-                                    "minimum": 0,
-                                    "maximum": query.MAX_OFFSET,
-                                    "default": 0,
-                                },
-                                "timeout_ms": {
-                                    "type": "integer",
-                                    "minimum": 1,
-                                    "maximum": query.MAX_TIMEOUT_MS,
-                                    "default": query.DEFAULT_TIMEOUT_MS,
-                                },
-                                "sort": {
-                                    "type": "object",
-                                    "additionalProperties": False,
-                                    "properties": {
-                                        "field": {
-                                            "type": "string",
-                                            "enum": [
-                                                "id",
-                                                "datetime_pulled",
-                                                "job_title",
-                                                "organization_name",
-                                            ],
-                                            "default": "id",
-                                        },
-                                        "direction": {
-                                            "type": "string",
-                                            "enum": ["asc", "desc"],
-                                            "default": "asc",
-                                        },
-                                    },
-                                },
-                            },
-                        },
-                        "examples": {
-                            "apple_dotnet": {
-                                "value": {
-                                    "query": {
-                                        "and": [
-                                            {"field": "organization", "value": "apple"},
-                                            {"field": "technology", "value": ".net"},
-                                        ]
-                                    }
-                                }
-                            },
-                            "not_apple": {
-                                "value": {
-                                    "query": {
-                                        "and": [
-                                            {"not": {"field": "organization", "value": "apple"}},
-                                            {
-                                                "or": [
-                                                    {
-                                                        "field": "job_function",
-                                                        "value": "statistician",
-                                                    },
-                                                    {"field": "technology", "value": "psql"},
-                                                ]
-                                            },
-                                        ]
-                                    }
-                                }
-                            },
-                            "controls": {
-                                "value": {
-                                    "query": {"field": "technology", "value": "python"},
-                                    "limit": 3,
-                                    "offset": 3,
-                                    "sort": {"field": "job_title", "direction": "desc"},
-                                    "timeout_ms": 1000,
-                                }
-                            },
-                        },
-                    }
-                },
-            }
-        },
-    )
+    @app.post("/jobs/search", response_model=list[Job])
     async def search(request: Request) -> list[Job]:
         if not searches.acquire(blocking=False):
             raise ServerBusyError

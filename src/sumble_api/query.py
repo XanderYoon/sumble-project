@@ -48,16 +48,16 @@ Why 16 and 128
     measured query or table size. The assignment examples are tiny (Apple AND
     .net is 3 nodes at depth 2).
 
-    16 levels  Enough nested Boolean, well below Python / JSON-container /
-               SQL-nesting recursion danger. HTTP JSON decoding later uses a
-               64-container guard, so over-deep queries still fail here as 422.
+    16 levels  Enough nested Boolean, and far below CPython's recursion limit,
+               so validation walks the tree with ordinary recursion. A tree
+               past this cap fails here as 422 before SQL.
     128 nodes  Each node becomes SQL against unindexed relationship tables;
                set algebra may rescan those tables for repeated leaves. 128
                still allows a wide OR of many names.
 
     16,384-byte body and 256-character values bound payload size. Depth and
-    node counts bound evaluation-graph size. Validation is iterative so these
-    caps, rather than CPython's recursion limit, are the failing edge.
+    node counts bound evaluation-graph size. Those caps, rather than
+    CPython's recursion limit, are the failing edge.
 """
 
 from __future__ import annotations
@@ -203,44 +203,18 @@ def _integer(
     return value
 
 
-@dataclass(frozen=True)
-class _Visit:
-    """Hold a raw expression awaiting bounded validation."""
-
-    value: object
-    depth: int
-    path: str
-
-
-@dataclass(frozen=True)
-class _Combine:
-    """Build an operator after its children have been validated."""
-
-    operator: Literal["and", "or", "not"]
-    count: int
-
-
 def _expression(value: object) -> Expression:
-    """Build a tree iteratively with at most 128 scheduled expression nodes."""
-    pending: list[_Visit | _Combine] = [_Visit(value, 1, "$.query")]
-    results: list[Expression] = []
-    scheduled = 1
-    while pending:
-        task = pending.pop()
-        if isinstance(task, _Combine):
-            children = tuple(results[-task.count :])
-            del results[-task.count :]
-            if task.operator == "not":
-                results.append(Negation(children[0]))
-            elif task.operator == "and":
-                results.append(Conjunction(children))
-            else:
-                results.append(Disjunction(children))
-            continue
+    """Walk one expression recursively, counting every leaf and operator."""
+    count = 0
 
-        if task.depth > MAX_QUERY_DEPTH:
-            raise QueryValidationError("Query exceeds 16 expression levels.", task.path)
-        node = _object(task.value, task.path, "Expression must be an object.")
+    def walk(raw: object, depth: int, path: str) -> Expression:
+        nonlocal count
+        count += 1
+        if count > MAX_QUERY_NODES:
+            raise QueryValidationError("Query exceeds 128 expression nodes.", path)
+        if depth > MAX_QUERY_DEPTH:
+            raise QueryValidationError("Query exceeds 16 expression levels.", path)
+        node = _object(raw, path, "Expression must be an object.")
         if set(node) == {"field", "value"}:
             field = node["field"]
             if not isinstance(field, str) or field not in (
@@ -248,7 +222,7 @@ def _expression(value: object) -> Expression:
                 "job_function",
                 "organization",
             ):
-                raise QueryValidationError("Filter field is not supported.", f"{task.path}.field")
+                raise QueryValidationError("Filter field is not supported.", f"{path}.field")
             literal = node["value"]
             if (
                 not isinstance(literal, str)
@@ -257,32 +231,25 @@ def _expression(value: object) -> Expression:
             ):
                 raise QueryValidationError(
                     "Value must be a nonblank string of at most 256 characters.",
-                    f"{task.path}.value",
+                    f"{path}.value",
                 )
-            results.append(Leaf(field, literal))
-            continue
-
+            return Leaf(field, literal)
         if set(node) == {"not"}:
-            operator = "not"
-            children_raw = [node["not"]]
-        elif set(node) in ({"and"}, {"or"}):
+            return Negation(walk(node["not"], depth + 1, f"{path}.not"))
+        if set(node) in ({"and"}, {"or"}):
             operator = "and" if "and" in node else "or"
-            raw = node[operator]
-            if not isinstance(raw, list) or not raw:
+            children_raw = node[operator]
+            if not isinstance(children_raw, list) or not children_raw:
                 raise QueryValidationError(
-                    "AND/OR requires a nonempty array.", f"{task.path}.{operator}"
+                    "AND/OR requires a nonempty array.", f"{path}.{operator}"
                 )
-            children_raw = raw
-        else:
-            raise QueryValidationError("Expression has invalid or ambiguous members.", task.path)
+            children = tuple(
+                walk(child, depth + 1, f"{path}.{operator}[{index}]")
+                for index, child in enumerate(children_raw)
+            )
+            if operator == "and":
+                return Conjunction(children)
+            return Disjunction(children)
+        raise QueryValidationError("Expression has invalid or ambiguous members.", path)
 
-        scheduled += len(children_raw)
-        if scheduled > MAX_QUERY_NODES:
-            raise QueryValidationError("Query exceeds 128 expression nodes.", task.path)
-        pending.append(_Combine(operator, len(children_raw)))
-        for index in range(len(children_raw) - 1, -1, -1):
-            path = f"{task.path}.{operator}"
-            if operator != "not":
-                path += f"[{index}]"
-            pending.append(_Visit(children_raw[index], task.depth + 1, path))
-    return results[0]
+    return walk(value, 1, "$.query")
