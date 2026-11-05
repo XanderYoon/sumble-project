@@ -1,0 +1,31 @@
+version: 1
+base_branch: main
+worktree_dir: .worktrees
+# Configure actual provider-specific model IDs available in your agent client.
+# No models or CLIs are assumed to exist.
+routing:
+  low: {provider: openai, model: null}
+  medium: {provider: openai, model: null}
+  high: {provider: openai, model: null}
+review:
+  # These are the user's desired reviewer labels, not verified API model IDs.
+  candidates:
+    - "GPT Sol (maximum thinking)"
+    - "Grok 4.7 (maximum thinking)"
+# Optional local agent launch adapters. Each command is an argv list, not a shell
+# string. Substitutions: {model}, {worktree}, {prompt_file}, {ticket_id}.
+# Example only (verify your agent CLI's flags before configuring):
+# runners:
+#   openai: ["your-agent-cli", "--model", "{model}", "--prompt-file", "{prompt_file}", "--cwd", "{worktree}"]
+runners: {}
+
+# Python project quality gates. Set enabled: true after adding Ruff/ty config
+# and dev dependencies to the APPROVED skeleton. Commands are argv (not shell).
+# Enabled gates are independently executed at ticket completion and review pass.
+quality:
+  enabled: false
+  commands:
+    - [ruff, format, --check, .]
+    - [ruff, check, .]
+    - [ty, check]
+    - [python, -m, pytest, -q]

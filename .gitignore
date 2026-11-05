@@ -22,3 +22,12 @@ agentic-sdlc.tar.gz
 .sdlc/.lock
 .pytest_cache/
 .ruff_cache/
+
+# Keep workflow documents and container build exclusions in the base checkout.
+!.sdlc/
+!.sdlc/**
+!.dockerignore
+.sdlc/.lock
+.sdlc/handoffs/
+.sdlc/runs/
+*.log

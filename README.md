@@ -4,6 +4,9 @@ Status: code skeleton for review. Query validation, SQL generation, HTTP routes,
 concurrency controls, and logging are explicit NotImplementedError stubs.
 The API is not functional yet; do not use this scaffold as the submission ZIP.
 
+See the [codebase flow diagram](docs/code-flow.md) for the planned request path
+through the modules, including error handling, logging, and resource cleanup.
+
 ## Runtime and planned startup
 
 Python 3.14, FastAPI, Psycopg 3, and the supplied PostgreSQL Docker image.
